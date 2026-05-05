@@ -2,6 +2,9 @@ import type { Candle } from "./indicators.js";
 import { ema, rsi, sma, atr, detectRsiDivergence, trendDirection, pctChange, maxDrawdown } from "./indicators.js";
 import { detectCandlePatterns, recentPatterns } from "./patterns.js";
 import { detectChartPatterns, bestChartPatterns, type ChartPatternHit } from "./chart-patterns.js";
+import { refineHit } from "./edwards-magee.js";
+import { tdSequential, recentTdSignal } from "./demark.js";
+import { kst, kstCrossover } from "./indicators.js";
 import { getCandleWeight, getChartPatternWeight } from "./weights.js";
 
 export interface ChartScore {
@@ -70,13 +73,29 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
 
   // Multi-bar chart patterns (run on whichever timeframe has more data — daily preferred)
   const seriesForChart = daily.length >= 30 ? daily : hourly;
-  const chartPatterns = bestChartPatterns(detectChartPatterns(seriesForChart));
+  const rawHits = bestChartPatterns(detectChartPatterns(seriesForChart));
+  const chartPatterns = rawHits.map((h) => refineHit(h, seriesForChart));
   for (const hit of chartPatterns) {
     const w = getChartPatternWeight(hit.pattern);
-    // Apply weight scaled by detection confidence (0..1)
     const contribution = w.weight * hit.confidence;
     score += hit.bullish ? contribution : -contribution;
   }
+
+  // DeMark TD Sequential exhaustion signals
+  const td = tdSequential(seriesForChart);
+  const tdSig = recentTdSignal(td, 3);
+  if (tdSig) {
+    if (tdSig.kind === "buySetup") { score += 5; notes.push("DeMark Buy Setup (9) — downtrend exhaustion"); }
+    else if (tdSig.kind === "sellSetup") { score -= 5; notes.push("DeMark Sell Setup (9) — uptrend exhaustion"); }
+    else if (tdSig.kind === "buyCountdown") { score += 12; notes.push("DeMark Buy Countdown (13) — strong reversal candidate"); }
+    else if (tdSig.kind === "sellCountdown") { score -= 12; notes.push("DeMark Sell Countdown (13) — strong top candidate"); }
+  }
+
+  // Pring KST crossover (using daily closes for "long" variant; falls back to hourly)
+  const kstResult = kst(seriesForChart.map((c) => c.c), "long");
+  const kstSig = kstCrossover(kstResult, 3);
+  if (kstSig === "bullish") { score += 6; notes.push("Pring KST bullish crossover"); }
+  else if (kstSig === "bearish") { score -= 6; notes.push("Pring KST bearish crossover"); }
 
   if (dailyCloses.length >= 30) {
     const dd = maxDrawdown(dailyCloses);

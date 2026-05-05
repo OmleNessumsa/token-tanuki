@@ -9,3 +9,4 @@ coverage/
 docs/source/text/
 docs/source/*.pdf
 docs/source/*.epub
+docs/source/*.zip

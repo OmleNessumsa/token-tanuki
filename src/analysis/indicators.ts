@@ -197,3 +197,160 @@ export function maxDrawdown(closes: readonly number[]): number {
   }
   return mdd;
 }
+
+/**
+ * Average Directional Index (Wilder, 1978).
+ * Returns ADX values smoothed by Wilder's averaging method (period default 14).
+ * ADX > 25 = trending; > 30 = strongly trending; < 20 = ranging.
+ */
+export function adx(candles: readonly Candle[], period = 14): number[] {
+  if (candles.length <= period + 1) return [];
+  const tr: number[] = [];
+  const plusDm: number[] = [];
+  const minusDm: number[] = [];
+  for (let i = 1; i < candles.length; i++) {
+    const c = candles[i]!;
+    const p = candles[i - 1]!;
+    tr.push(Math.max(c.h - c.l, Math.abs(c.h - p.c), Math.abs(c.l - p.c)));
+    const upMove = c.h - p.h;
+    const downMove = p.l - c.l;
+    plusDm.push(upMove > downMove && upMove > 0 ? upMove : 0);
+    minusDm.push(downMove > upMove && downMove > 0 ? downMove : 0);
+  }
+  // Wilder smoothing: first value is sum of first `period`, then prev*(1-1/p) + current
+  const smooth = (arr: number[]): number[] => {
+    if (arr.length < period) return [];
+    const out: number[] = [];
+    let sum = 0;
+    for (let i = 0; i < period; i++) sum += arr[i]!;
+    out.push(sum);
+    for (let i = period; i < arr.length; i++) {
+      out.push(out[out.length - 1]! - out[out.length - 1]! / period + arr[i]!);
+    }
+    return out;
+  };
+  const trS = smooth(tr);
+  const pdmS = smooth(plusDm);
+  const mdmS = smooth(minusDm);
+  const dx: number[] = [];
+  for (let i = 0; i < trS.length; i++) {
+    if (trS[i] === 0) { dx.push(0); continue; }
+    const pdi = (pdmS[i]! / trS[i]!) * 100;
+    const mdi = (mdmS[i]! / trS[i]!) * 100;
+    const sum = pdi + mdi;
+    dx.push(sum === 0 ? 0 : (Math.abs(pdi - mdi) / sum) * 100);
+  }
+  // ADX = Wilder-smoothed DX
+  if (dx.length < period) return [];
+  const adxOut: number[] = [];
+  let sum = 0;
+  for (let i = 0; i < period; i++) sum += dx[i]!;
+  adxOut.push(sum / period);
+  for (let i = period; i < dx.length; i++) {
+    adxOut.push((adxOut[adxOut.length - 1]! * (period - 1) + dx[i]!) / period);
+  }
+  return adxOut;
+}
+
+/** Rate of change: (close[i] / close[i-period] - 1) × 100. */
+export function roc(closes: readonly number[], period: number): number[] {
+  if (period <= 0 || closes.length <= period) return [];
+  const out: number[] = [];
+  for (let i = period; i < closes.length; i++) {
+    const prev = closes[i - period]!;
+    out.push(prev === 0 ? 0 : (closes[i]! / prev - 1) * 100);
+  }
+  return out;
+}
+
+/**
+ * Pring's KST (Know Sure Thing).
+ * Source: Martin Pring, "Technical Analysis Explained" (5th ed., McGraw-Hill 2014).
+ *
+ * Sum of 4 smoothed ROCs of different time spans, weighted 1-4 (longer = heavier).
+ * Default = short-term (daily) variant. Pass {variant: "long"} for monthly use.
+ *
+ * Daily KST:    ROC(10) SMA(10) × 1 + ROC(15) SMA(10) × 2 + ROC(20) SMA(10) × 3 + ROC(30) SMA(15) × 4
+ * Long-term:    ROC( 9) SMA( 6) × 1 + ROC(12) SMA( 6) × 2 + ROC(18) SMA( 6) × 3 + ROC(24) SMA( 9) × 4
+ */
+export interface KstResult {
+  values: number[];
+  signal: number[];   // KST smoothed by signal-line MA (default 9-period)
+}
+
+export function kst(closes: readonly number[], variant: "short" | "long" = "short", signalPeriod = 9): KstResult {
+  const params = variant === "short"
+    ? [{ roc: 10, sma: 10 }, { roc: 15, sma: 10 }, { roc: 20, sma: 10 }, { roc: 30, sma: 15 }]
+    : [{ roc:  9, sma:  6 }, { roc: 12, sma:  6 }, { roc: 18, sma:  6 }, { roc: 24, sma:  9 }];
+  const weights = [1, 2, 3, 4];
+
+  const components: number[][] = params.map(({ roc: rocPeriod, sma: smaPeriod }) =>
+    sma(roc(closes, rocPeriod), smaPeriod),
+  );
+
+  // Align to the shortest component (each has a different start offset)
+  const minLen = Math.min(...components.map((c) => c.length));
+  if (minLen === 0) return { values: [], signal: [] };
+  const aligned = components.map((c) => c.slice(c.length - minLen));
+
+  const values: number[] = [];
+  for (let i = 0; i < minLen; i++) {
+    let sum = 0;
+    for (let k = 0; k < aligned.length; k++) sum += aligned[k]![i]! * weights[k]!;
+    values.push(sum);
+  }
+
+  const signal = sma(values, signalPeriod);
+  return { values, signal };
+}
+
+/**
+ * Pring's Special K — extended KST combining short, intermediate, and long-term ROCs.
+ * Standard Pring weights for daily charts.
+ *
+ * Use case: a single oscillator that captures multi-timeframe momentum confluence.
+ * Especially good for spotting cycle turning points where short and long ROCs align.
+ */
+export function specialK(closes: readonly number[]): number[] {
+  const params: Array<{ roc: number; sma: number; w: number }> = [
+    { roc:  10, sma:  10, w: 1 }, { roc:  15, sma:  10, w: 2 }, { roc:  20, sma:  10, w: 3 }, { roc:  30, sma:  15, w: 4 },
+    { roc:  40, sma:  50, w: 1 }, { roc:  65, sma:  65, w: 2 }, { roc:  75, sma:  75, w: 3 }, { roc: 100, sma: 100, w: 4 },
+    { roc: 195, sma: 130, w: 1 }, { roc: 265, sma: 130, w: 2 }, { roc: 390, sma: 130, w: 3 }, { roc: 530, sma: 195, w: 4 },
+  ];
+
+  const components = params.map(({ roc: rp, sma: sp }) => sma(roc(closes, rp), sp));
+  const minLen = Math.min(...components.map((c) => c.length));
+  if (minLen === 0) return [];
+  const aligned = components.map((c) => c.slice(c.length - minLen));
+
+  const out: number[] = [];
+  for (let i = 0; i < minLen; i++) {
+    let sum = 0;
+    for (let k = 0; k < aligned.length; k++) sum += aligned[k]![i]! * params[k]!.w;
+    out.push(sum);
+  }
+  return out;
+}
+
+/**
+ * KST signal: detect a recent crossover of KST and its signal line.
+ * Returns "bullish" (KST crossed above), "bearish" (crossed below), or null.
+ */
+export function kstCrossover(result: KstResult, lookback = 3): "bullish" | "bearish" | null {
+  const v = result.values;
+  const s = result.signal;
+  if (s.length < 2) return null;
+  const offset = v.length - s.length;
+  const start = s.length - 1;
+  const end = Math.max(1, s.length - lookback - 1);
+  for (let i = start; i >= end; i--) {
+    if (i + offset - 1 < 0) continue;
+    const k = v[i + offset]!;
+    const sig = s[i]!;
+    const kPrev = v[i + offset - 1]!;
+    const sigPrev = s[i - 1]!;
+    if (kPrev <= sigPrev && k > sig) return "bullish";
+    if (kPrev >= sigPrev && k < sig) return "bearish";
+  }
+  return null;
+}
