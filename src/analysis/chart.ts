@@ -5,6 +5,7 @@ import { detectChartPatterns, bestChartPatterns, type ChartPatternHit } from "./
 import { refineHit } from "./edwards-magee.js";
 import { tdSequential, recentTdSignal } from "./demark.js";
 import { kst, kstCrossover } from "./indicators.js";
+import { detectBreakout, type BreakoutResult } from "./breakout.js";
 import { getCandleWeight, getChartPatternWeight } from "./weights.js";
 
 export interface ChartScore {
@@ -15,6 +16,7 @@ export interface ChartScore {
   recentBullishPatterns: string[];
   recentBearishPatterns: string[];
   chartPatterns: ChartPatternHit[];
+  breakout: BreakoutResult | null;
   volumeConfirmation: boolean;
   notes: string[];
 }
@@ -97,6 +99,13 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
   if (kstSig === "bullish") { score += 6; notes.push("Pring KST bullish crossover"); }
   else if (kstSig === "bearish") { score -= 6; notes.push("Pring KST bearish crossover"); }
 
+  // Donchian-style 20-day breakout + relative volume (Connors / O'Neil / Minervini common signal)
+  const breakout = detectBreakout(seriesForChart, { lookback: 20 });
+  if (breakout) {
+    score += breakout.score;
+    notes.push(`Breakout: ${breakout.description}`);
+  }
+
   if (dailyCloses.length >= 30) {
     const dd = maxDrawdown(dailyCloses);
     if (dd > 0.7) { score -= 8; notes.push(`Max drawdown ${(dd * 100).toFixed(0)}%`); }
@@ -118,6 +127,7 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
     recentBullishPatterns: bullish,
     recentBearishPatterns: bearish,
     chartPatterns,
+    breakout,
     volumeConfirmation,
     notes,
   };

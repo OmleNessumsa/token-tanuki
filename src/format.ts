@@ -50,6 +50,14 @@ export function formatVerdict(result: AnalysisResult): string {
 
   lines.push(pc.bold(`Chart ${barScore(chart.score)} ${chart.score}/100`));
   for (const note of chart.notes) lines.push(`  · ${note}`);
+  if (chart.breakout) {
+    const b = chart.breakout;
+    const icon = b.state === "broken_out" ? pc.green("▲")
+      : b.state === "at_breakout" ? pc.yellow("◆")
+      : b.state === "below_breakdown" ? pc.red("▼")
+      : pc.dim("·");
+    lines.push(`  ${icon} 20d breakout: ${b.state} — ${b.description}`);
+  }
   if (chart.chartPatterns.length > 0) {
     lines.push(pc.bold("  Multi-bar patterns:"));
     for (const p of chart.chartPatterns) {

@@ -126,6 +126,10 @@ type Direction = "bullish" | "bearish" | "neutral";
 
 function readDirection(chart: ChartScore): Direction {
   const rsi = chart.rsi ?? 50;
+  // Confirmed breakout with volume overrides everything else — that's a tactical bullish signal
+  // independent of trend (Connors, O'Neil, Minervini common framework).
+  if (chart.breakout?.state === "broken_out" && chart.breakout.volumeConfirmed) return "bullish";
+  if (chart.breakout?.state === "below_breakdown" && chart.breakout.volumeConfirmed) return "bearish";
   if (chart.rsiDivergence === "bullish") return "bullish";
   if (chart.rsiDivergence === "bearish") return "bearish";
   if (chart.trend === "up" && rsi < 75) return "bullish";
