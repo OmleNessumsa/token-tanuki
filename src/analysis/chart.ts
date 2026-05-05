@@ -1,6 +1,7 @@
 import type { Candle } from "./indicators.js";
 import { ema, rsi, sma, atr, detectRsiDivergence, trendDirection, pctChange, maxDrawdown } from "./indicators.js";
 import { detectCandlePatterns, recentPatterns } from "./patterns.js";
+import { getCandleWeight } from "./weights.js";
 
 export interface ChartScore {
   score: number; // 0-100
@@ -48,17 +49,14 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
   const recent = recentPatterns(allPatterns, hourly.length, 4);
   const bullish: string[] = [];
   const bearish: string[] = [];
-  const weights: Record<string, number> = {
-    threeWhiteSoldiers: 12, threeBlackCrows: 12,
-    morningStar: 10, eveningStar: 10,
-    bullishEngulfing: 6, bearishEngulfing: 6,
-    hammer: 4, shootingStar: 4,
-  };
+  // Deduplicate: count each pattern only once even if it fires on multiple recent bars.
+  const seen = new Set<string>();
   for (const hit of recent) {
-    if (hit.pattern === "doji") continue;
+    if (hit.pattern === "doji" || seen.has(hit.pattern)) continue;
+    seen.add(hit.pattern);
     if (hit.bullish) bullish.push(hit.pattern);
     else bearish.push(hit.pattern);
-    const w = weights[hit.pattern] ?? 0;
+    const w = getCandleWeight(hit.pattern).weight;
     score += hit.bullish ? w : -w;
   }
 

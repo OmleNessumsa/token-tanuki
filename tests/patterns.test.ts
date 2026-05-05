@@ -11,8 +11,11 @@ describe("detectCandlePatterns", () => {
     expect(hits.some((h) => h.pattern === "hammer")).toBe(true);
   });
 
-  it("detects a shooting star", () => {
-    const candles = [c(10.5, 13, 10.48, 10.6)];
+  it("detects a shooting star (bullish prior, gap up, bearish inverted hammer at top)", () => {
+    const candles = [
+      c(10, 11, 9.9, 10.95),     // bullish bar, high = 11
+      c(11.5, 13, 11.35, 11.4),  // gap-up open (>11), bearish (close<open), body 0.1, upper wick 1.5
+    ];
     const hits = detectCandlePatterns(candles);
     expect(hits.some((h) => h.pattern === "shootingStar")).toBe(true);
   });

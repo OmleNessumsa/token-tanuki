@@ -48,6 +48,9 @@ export function evaluateEvmSecurity(
   const pairAgeHours = ctx.pairAgeHours;
   const isTrusted = goplus?.trust_list === "1";
   const isLongLivedBlueChip = (ctx.pairAgeHours ?? 0) > 24 * 365 && (ctx.pairLiquidityUsd ?? 0) > 1_000_000;
+  const holderCount = parseInt(goplus?.holder_count ?? "0", 10);
+  // 10k+ holders + real liquidity = "rugging via LP" isn't the threat model anymore.
+  const isWidelyHeld = holderCount > 10_000 && (ctx.pairLiquidityUsd ?? 0) > 500_000;
   const findings: SecurityFinding[] = [];
   const fatals: SecurityFinding[] = [];
 
@@ -93,10 +96,20 @@ export function evaluateEvmSecurity(
       fatals.push({ level: "fatal", source: "goplus", message: "Contract source not verified (token > 24h old)" });
     }
     if (isFlagged(goplus.hidden_owner)) {
-      fatals.push({ level: "fatal", source: "goplus", message: "Hidden owner detected" });
+      // For governance/DAO tokens (trust-listed or widely-held with deep liquidity),
+      // "hidden owner" usually means a governance contract, not a rug vector.
+      if (isTrusted || isWidelyHeld) {
+        findings.push({ level: "warn", source: "goplus", message: "Non-standard owner pattern (likely DAO/governance — verify)" });
+      } else {
+        fatals.push({ level: "fatal", source: "goplus", message: "Hidden owner detected" });
+      }
     }
     if (isFlagged(goplus.can_take_back_ownership)) {
-      fatals.push({ level: "fatal", source: "goplus", message: "Owner can be reclaimed after renounce" });
+      if (isTrusted || isWidelyHeld) {
+        findings.push({ level: "warn", source: "goplus", message: "Ownership reclaimable (governance pattern — verify)" });
+      } else {
+        fatals.push({ level: "fatal", source: "goplus", message: "Owner can be reclaimed after renounce" });
+      }
     }
     if (isFlagged(goplus.owner_change_balance)) {
       fatals.push({ level: "fatal", source: "goplus", message: "Owner can rewrite balances" });
@@ -133,12 +146,18 @@ export function evaluateEvmSecurity(
       }, 0);
       lpLockedOrBurned = lockedShare > 0.5;
       if (!lpLockedOrBurned) {
-        // V3 NFT positions: lock/burn semantics differ; many independent LPs is normal.
-        // Long-lived blue chips with deep liquidity: lock signal not meaningful.
-        if (ctx.isV3Pair || isLongLivedBlueChip || isTrusted) {
+        // Determine concentration of LP itself — a single wallet holding most LP is a rug vector;
+        // distributed LP across many providers is just normal Uniswap behavior.
+        const topLpPct = goplus.lp_holders.reduce((m, h) => Math.max(m, h.percent ? parseFloat(h.percent) : 0), 0);
+        const lpHoldersCount = goplus.lp_holders.length;
+        const lpConcentrated = topLpPct > 0.5 && lpHoldersCount < 5;
+
+        if (ctx.isV3Pair || isLongLivedBlueChip || isTrusted || isWidelyHeld) {
           findings.push({ level: "warn", source: "goplus", message: `LP only ${(lockedShare * 100).toFixed(0)}% locked (V3/blue-chip — context applies)` });
+        } else if (lpConcentrated) {
+          fatals.push({ level: "fatal", source: "goplus", message: `LP not locked AND ${(topLpPct * 100).toFixed(0)}% held by single wallet — rug vector` });
         } else {
-          fatals.push({ level: "fatal", source: "goplus", message: `LP not locked/burned (${(lockedShare * 100).toFixed(0)}% locked)` });
+          findings.push({ level: "warn", source: "goplus", message: `LP ${(lockedShare * 100).toFixed(0)}% locked, but distributed across ${lpHoldersCount} holders` });
         }
       } else {
         findings.push({ level: "good", source: "goplus", message: `LP ${(lockedShare * 100).toFixed(0)}% locked/burned` });
@@ -146,17 +165,27 @@ export function evaluateEvmSecurity(
     }
 
     if (goplus.holders && goplus.holders.length > 0) {
+      const KNOWN_INSTITUTIONAL_TAGS = ["lock", "dead", "burn", "uniswap", "locker", "treasury", "foundation", "dao", "multisig", "governance", "vesting", "deployer", "staking", "bridge", "gnosis"];
       const filtered = goplus.holders.filter((h) => {
         const tag = (h.tag ?? "").toLowerCase();
         const addr = (h.address ?? "").toLowerCase();
-        return !tag.includes("lock") && !tag.includes("dead") && !tag.includes("burn") && !tag.includes("uniswap") && !tag.includes("locker") && !addr.endsWith("dead");
+        if (addr.endsWith("dead")) return false;
+        return !KNOWN_INSTITUTIONAL_TAGS.some((k) => tag.includes(k));
       });
       const top = filtered[0];
       if (top?.percent) {
         const pct = parseFloat(top.percent) * 100;
         topHolderPct = pct;
-        if (pct > 30) fatals.push({ level: "fatal", source: "goplus", message: `Top non-LP holder owns ${pct.toFixed(1)}%` });
-        else if (pct > 15) findings.push({ level: "warn", source: "goplus", message: `Top non-LP holder owns ${pct.toFixed(1)}%` });
+        // For DAO governance tokens with many holders, the "top wallet" often is
+        // an unlabeled treasury or multisig — soften the fatal threshold.
+        const isGovernanceContext = isTrusted || isWidelyHeld;
+        if (pct > 30 && !isGovernanceContext) {
+          fatals.push({ level: "fatal", source: "goplus", message: `Top non-LP holder owns ${pct.toFixed(1)}%` });
+        } else if (pct > 30 && isGovernanceContext) {
+          findings.push({ level: "warn", source: "goplus", message: `Top non-LP holder owns ${pct.toFixed(1)}% (likely treasury — verify on Etherscan)` });
+        } else if (pct > 15) {
+          findings.push({ level: "warn", source: "goplus", message: `Top non-LP holder owns ${pct.toFixed(1)}%` });
+        }
       }
     }
   }

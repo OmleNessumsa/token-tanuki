@@ -6,3 +6,6 @@ coverage/
 *.log
 .DS_Store
 .vitest-cache/
+docs/source/text/
+docs/source/*.pdf
+docs/source/*.epub

@@ -1,15 +1,28 @@
 import type { Candle } from "./indicators.js";
+import * as cdl from "candlestick";
 
+// All candle pattern keys we surface to the scorer. Names match weights.ts CANDLE_ALIASES.
 export type CandlePattern =
   | "bullishEngulfing"
   | "bearishEngulfing"
   | "hammer"
+  | "invertedHammer"
   | "shootingStar"
+  | "hangingMan"
   | "morningStar"
   | "eveningStar"
   | "threeWhiteSoldiers"
   | "threeBlackCrows"
-  | "doji";
+  | "bullishHarami"
+  | "bearishHarami"
+  | "piercingLine"
+  | "darkCloudCover"
+  | "doji"
+  | "marubozu"
+  | "bullishKicker"
+  | "bearishKicker"
+  | "tweezersTop"
+  | "tweezersBottom";
 
 export interface PatternHit {
   pattern: CandlePattern;
@@ -17,55 +30,70 @@ export interface PatternHit {
   bullish: boolean;
 }
 
-const body = (c: Candle): number => Math.abs(c.c - c.o);
-const range = (c: Candle): number => Math.max(c.h - c.l, 1e-12);
-const upperWick = (c: Candle): number => c.h - Math.max(c.o, c.c);
-const lowerWick = (c: Candle): number => Math.min(c.o, c.c) - c.l;
-const isGreen = (c: Candle): boolean => c.c > c.o;
-const isRed = (c: Candle): boolean => c.c < c.o;
+const BULLISH = new Set<CandlePattern>([
+  "bullishEngulfing", "hammer", "invertedHammer", "morningStar",
+  "threeWhiteSoldiers", "bullishHarami", "piercingLine",
+  "bullishKicker", "tweezersBottom",
+]);
+
+interface CdlCandle { open: number; high: number; low: number; close: number; }
+
+const toCdl = (c: Candle): CdlCandle => ({ open: c.o, high: c.h, low: c.l, close: c.c });
+
+// Single-candle detectors (need only the current bar)
+const SINGLE: Array<[CandlePattern, (c: CdlCandle) => boolean]> = [
+  ["hammer",         (c) => cdl.isHammer(c) === true],
+  ["invertedHammer", (c) => cdl.isInvertedHammer(c) === true],
+  ["doji",           (c) => cdl.isDoji(c) === true],
+  ["marubozu",       (c) => cdl.isMarubozu(c) === true],
+];
+
+// Two-candle detectors (previous + current)
+const TWO: Array<[CandlePattern, (a: CdlCandle, b: CdlCandle) => boolean]> = [
+  ["bullishEngulfing", (a, b) => cdl.isBullishEngulfing(a, b) === true],
+  ["bearishEngulfing", (a, b) => cdl.isBearishEngulfing(a, b) === true],
+  ["bullishHarami",    (a, b) => cdl.isBullishHarami(a, b) === true],
+  ["bearishHarami",    (a, b) => cdl.isBearishHarami(a, b) === true],
+  ["bullishKicker",    (a, b) => cdl.isBullishKicker(a, b) === true],
+  ["bearishKicker",    (a, b) => cdl.isBearishKicker(a, b) === true],
+  ["piercingLine",     (a, b) => cdl.isPiercingLine(a, b) === true],
+  ["darkCloudCover",   (a, b) => cdl.isDarkCloudCover(a, b) === true],
+  ["tweezersTop",      (a, b) => cdl.isTweezersTop(a, b) === true],
+  ["tweezersBottom",   (a, b) => cdl.isTweezersBottom(a, b) === true],
+  ["shootingStar",     (a, b) => cdl.isShootingStar(a, b) === true],
+  ["hangingMan",       (a, b) => cdl.isHangingMan(a, b) === true],
+];
+
+// Three-candle detectors
+const THREE: Array<[CandlePattern, (a: CdlCandle, b: CdlCandle, c: CdlCandle) => boolean]> = [
+  ["morningStar",        (a, b, c) => cdl.isMorningStar(a, b, c) === true],
+  ["eveningStar",        (a, b, c) => cdl.isEveningStar(a, b, c) === true],
+  ["threeWhiteSoldiers", (a, b, c) => cdl.isThreeWhiteSoldiers(a, b, c) === true],
+  ["threeBlackCrows",    (a, b, c) => cdl.isThreeBlackCrows(a, b, c) === true],
+];
 
 export function detectCandlePatterns(candles: readonly Candle[]): PatternHit[] {
   const hits: PatternHit[] = [];
   for (let i = 0; i < candles.length; i++) {
     const c = candles[i]!;
-    if (body(c) / range(c) < 0.1) hits.push({ pattern: "doji", index: i, bullish: false });
-
-    if (lowerWick(c) >= 2 * body(c) && upperWick(c) < body(c) && body(c) > 0) {
-      hits.push({ pattern: "hammer", index: i, bullish: true });
+    const cc = toCdl(c);
+    for (const [name, test] of SINGLE) {
+      try { if (test(cc)) hits.push({ pattern: name, index: i, bullish: BULLISH.has(name) }); }
+      catch { /* lib may throw on malformed candle; skip */ }
     }
-    if (upperWick(c) >= 2 * body(c) && lowerWick(c) < body(c) && body(c) > 0) {
-      hits.push({ pattern: "shootingStar", index: i, bullish: false });
-    }
-
     if (i >= 1) {
-      const prev = candles[i - 1]!;
-      if (isRed(prev) && isGreen(c) && c.o <= prev.c && c.c >= prev.o && body(c) > body(prev)) {
-        hits.push({ pattern: "bullishEngulfing", index: i, bullish: true });
-      }
-      if (isGreen(prev) && isRed(c) && c.o >= prev.c && c.c <= prev.o && body(c) > body(prev)) {
-        hits.push({ pattern: "bearishEngulfing", index: i, bullish: false });
+      const a = toCdl(candles[i - 1]!);
+      for (const [name, test] of TWO) {
+        try { if (test(a, cc)) hits.push({ pattern: name, index: i, bullish: BULLISH.has(name) }); }
+        catch {}
       }
     }
-
     if (i >= 2) {
-      const a = candles[i - 2]!;
-      const b = candles[i - 1]!;
-      const cc = c;
-      if (isRed(a) && body(b) < body(a) * 0.5 && isGreen(cc) && cc.c > (a.o + a.c) / 2) {
-        hits.push({ pattern: "morningStar", index: i, bullish: true });
-      }
-      if (isGreen(a) && body(b) < body(a) * 0.5 && isRed(cc) && cc.c < (a.o + a.c) / 2) {
-        hits.push({ pattern: "eveningStar", index: i, bullish: false });
-      }
-      if (isGreen(a) && isGreen(b) && isGreen(cc)
-          && b.c > a.c && cc.c > b.c
-          && body(a) > range(a) * 0.6 && body(b) > range(b) * 0.6 && body(cc) > range(cc) * 0.6) {
-        hits.push({ pattern: "threeWhiteSoldiers", index: i, bullish: true });
-      }
-      if (isRed(a) && isRed(b) && isRed(cc)
-          && b.c < a.c && cc.c < b.c
-          && body(a) > range(a) * 0.6 && body(b) > range(b) * 0.6 && body(cc) > range(cc) * 0.6) {
-        hits.push({ pattern: "threeBlackCrows", index: i, bullish: false });
+      const a = toCdl(candles[i - 2]!);
+      const b = toCdl(candles[i - 1]!);
+      for (const [name, test] of THREE) {
+        try { if (test(a, b, cc)) hits.push({ pattern: name, index: i, bullish: BULLISH.has(name) }); }
+        catch {}
       }
     }
   }

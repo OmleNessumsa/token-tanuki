@@ -8,13 +8,20 @@ export async function getPairs(chain: Chain, address: string): Promise<DexScreen
   const slug = NETWORK_SLUGS.dexscreener[chain];
   const url = `${endpoints.dexscreener}/token-pairs/v1/${slug}/${address}`;
   const raw = await fetchJson<unknown>(url);
+  let pairs: DexScreenerPair[] = [];
   if (Array.isArray(raw)) {
     const parsed = DexScreenerResponse.safeParse({ pairs: raw });
-    if (parsed.success) return parsed.data.pairs ?? [];
+    if (parsed.success) pairs = parsed.data.pairs ?? [];
+  } else {
+    const parsed = DexScreenerResponse.safeParse(raw);
+    if (parsed.success) pairs = parsed.data.pairs ?? [];
   }
-  const parsed = DexScreenerResponse.safeParse(raw);
-  if (parsed.success) return parsed.data.pairs ?? [];
-  return [];
+  // Some tokens are missing from token-pairs/v1 indexing but present in /latest/dex/search.
+  if (pairs.length === 0) {
+    const searched = await searchByAddress(address);
+    pairs = searched.filter((p) => p.chainId === slug);
+  }
+  return pairs;
 }
 
 export async function searchByAddress(address: string): Promise<DexScreenerPair[]> {

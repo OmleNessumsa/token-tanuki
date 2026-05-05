@@ -1,0 +1,948 @@
+{
+  "source": "Bulkowski, Thomas N. \u2014 Encyclopedia of Candlestick Charts (Wiley, 2008)",
+  "extracted_at": "2026-05-05",
+  "note": "Per-section top-15 lists from Chapter 2 'Statistics Summary'. Patterns NOT appearing in a section did not rank in the top 15 for that metric. Source dataset: ~4.7M candle observations.",
+  "sections": {
+    "overall_rank": [
+      {
+        "pattern": "Three-line strike, bearish",
+        "value_pct": 67.38
+      },
+      {
+        "pattern": "Three-line strike, bullish",
+        "value_pct": 65.23
+      },
+      {
+        "pattern": "Three black crows",
+        "value_pct": 59.83
+      },
+      {
+        "pattern": "Evening star",
+        "value_pct": 55.85
+      },
+      {
+        "pattern": "Upside Tasuki gap",
+        "value_pct": 54.44
+      },
+      {
+        "pattern": "Hammer, inverted",
+        "value_pct": 51.73
+      },
+      {
+        "pattern": "Matching low",
+        "value_pct": 50.0
+      },
+      {
+        "pattern": "Abandoned baby, bullish",
+        "value_pct": 49.73
+      },
+      {
+        "pattern": "Two black gapping candles",
+        "value_pct": 49.64
+      },
+      {
+        "pattern": "Breakaway, bearish",
+        "value_pct": 49.24
+      },
+      {
+        "pattern": "Morning star",
+        "value_pct": 49.05
+      },
+      {
+        "pattern": "Piercing",
+        "value_pct": 48.37
+      },
+      {
+        "pattern": "Stick sandwich",
+        "value_pct": 48.2
+      },
+      {
+        "pattern": "Thrusting",
+        "value_pct": 48.1
+      },
+      {
+        "pattern": "Meeting lines, bearish",
+        "value_pct": 48.07
+      }
+    ],
+    "reversal_bull_pct": [
+      {
+        "pattern": "Three stars in the South",
+        "value_pct": 86.0
+      },
+      {
+        "pattern": "Three-line strike, bearish",
+        "value_pct": 84.0
+      },
+      {
+        "pattern": "Three white soldiers",
+        "value_pct": 82.0
+      },
+      {
+        "pattern": "Identical three crows",
+        "value_pct": 79.0
+      },
+      {
+        "pattern": "Engulfing, bearish",
+        "value_pct": 79.0
+      },
+      {
+        "pattern": "Morning star",
+        "value_pct": 78.0
+      },
+      {
+        "pattern": "Three black crows",
+        "value_pct": 78.0
+      },
+      {
+        "pattern": "Morning doji star",
+        "value_pct": 76.0
+      },
+      {
+        "pattern": "Three outside up",
+        "value_pct": 75.0
+      },
+      {
+        "pattern": "Evening star",
+        "value_pct": 72.0
+      },
+      {
+        "pattern": "Belt hold, bullish",
+        "value_pct": 71.0
+      },
+      {
+        "pattern": "Evening doji star",
+        "value_pct": 71.0
+      },
+      {
+        "pattern": "Abandoned baby, bullish",
+        "value_pct": 70.0
+      },
+      {
+        "pattern": "Abandoned baby, bearish",
+        "value_pct": 69.0
+      },
+      {
+        "pattern": "Three outside down",
+        "value_pct": 69.0
+      }
+    ],
+    "reversal_bear_pct": [
+      {
+        "pattern": "Three stars in the South",
+        "value_pct": 100.0
+      },
+      {
+        "pattern": "Breakaway, bearish",
+        "value_pct": 89.0
+      },
+      {
+        "pattern": "Three white soldiers",
+        "value_pct": 84.0
+      },
+      {
+        "pattern": "Three-line strike, bullish",
+        "value_pct": 83.0
+      },
+      {
+        "pattern": "Engulfing, bearish",
+        "value_pct": 82.0
+      },
+      {
+        "pattern": "Three black crows",
+        "value_pct": 79.0
+      },
+      {
+        "pattern": "Three-line strike, bearish",
+        "value_pct": 77.0
+      },
+      {
+        "pattern": "Three outside up",
+        "value_pct": 74.0
+      },
+      {
+        "pattern": "Upside gap three methods",
+        "value_pct": 72.0
+      },
+      {
+        "pattern": "Identical three crows",
+        "value_pct": 72.0
+      },
+      {
+        "pattern": "Evening star",
+        "value_pct": 72.0
+      },
+      {
+        "pattern": "Breakaway, bullish",
+        "value_pct": 71.0
+      },
+      {
+        "pattern": "Morning doji star",
+        "value_pct": 71.0
+      },
+      {
+        "pattern": "Belt hold, bullish",
+        "value_pct": 71.0
+      },
+      {
+        "pattern": "Evening doji star",
+        "value_pct": 71.0
+      }
+    ],
+    "continuation_bull_pct": [
+      {
+        "pattern": "Mat hold",
+        "value_pct": 78.0
+      },
+      {
+        "pattern": "Deliberation",
+        "value_pct": 77.0
+      },
+      {
+        "pattern": "Concealing baby swallow",
+        "value_pct": 75.0
+      },
+      {
+        "pattern": "Rising three methods",
+        "value_pct": 74.0
+      },
+      {
+        "pattern": "Separating lines, bullish",
+        "value_pct": 72.0
+      },
+      {
+        "pattern": "Falling three methods",
+        "value_pct": 71.0
+      },
+      {
+        "pattern": "Doji star, bearish",
+        "value_pct": 69.0
+      },
+      {
+        "pattern": "Last engulfing top",
+        "value_pct": 68.0
+      },
+      {
+        "pattern": "Two black gapping candles",
+        "value_pct": 68.0
+      },
+      {
+        "pattern": "Side-by-side white lines, bullish",
+        "value_pct": 66.0
+      },
+      {
+        "pattern": "Hammer, inverted",
+        "value_pct": 65.0
+      },
+      {
+        "pattern": "Last engulfing bottom",
+        "value_pct": 65.0
+      },
+      {
+        "pattern": "Advance block",
+        "value_pct": 64.0
+      },
+      {
+        "pattern": "Doji star, bullish",
+        "value_pct": 64.0
+      },
+      {
+        "pattern": "Separating lines, bearish",
+        "value_pct": 63.0
+      }
+    ],
+    "continuation_bear_pct": [
+      {
+        "pattern": "Kicking, bearish",
+        "value_pct": 80.0
+      },
+      {
+        "pattern": "Rising three methods",
+        "value_pct": 79.0
+      },
+      {
+        "pattern": "Separating lines, bearish",
+        "value_pct": 76.0
+      },
+      {
+        "pattern": "Deliberation",
+        "value_pct": 75.0
+      },
+      {
+        "pattern": "13 new price lines",
+        "value_pct": 74.0
+      },
+      {
+        "pattern": "Doji star, bullish",
+        "value_pct": 70.0
+      },
+      {
+        "pattern": "Two black gapping candles",
+        "value_pct": 69.0
+      },
+      {
+        "pattern": "Separating lines, bullish",
+        "value_pct": 69.0
+      },
+      {
+        "pattern": "Doji star, bearish",
+        "value_pct": 67.0
+      },
+      {
+        "pattern": "Last engulfing bottom",
+        "value_pct": 67.0
+      },
+      {
+        "pattern": "Hammer, inverted",
+        "value_pct": 67.0
+      },
+      {
+        "pattern": "Last engulfing top",
+        "value_pct": 67.0
+      },
+      {
+        "pattern": "Mat hold",
+        "value_pct": 67.0
+      },
+      {
+        "pattern": "Falling three methods",
+        "value_pct": 67.0
+      },
+      {
+        "pattern": "In neck",
+        "value_pct": 65.0
+      }
+    ],
+    "perf_10d_bull_up_pct": [
+      {
+        "pattern": "Doji star, collapsing",
+        "value_pct": 7.32
+      },
+      {
+        "pattern": "Three black crows",
+        "value_pct": 6.95
+      },
+      {
+        "pattern": "Breakaway, bearish",
+        "value_pct": 6.66
+      },
+      {
+        "pattern": "Concealing baby swallow",
+        "value_pct": 5.92
+      },
+      {
+        "pattern": "Identical three crows",
+        "value_pct": 5.67
+      },
+      {
+        "pattern": "Evening star",
+        "value_pct": 5.37
+      },
+      {
+        "pattern": "Long day, black",
+        "value_pct": 5.11
+      },
+      {
+        "pattern": "Doji star, bullish",
+        "value_pct": 5.1
+      },
+      {
+        "pattern": "Hammer, inverted",
+        "value_pct": 5.03
+      },
+      {
+        "pattern": "Separating lines, bearish",
+        "value_pct": 4.93
+      },
+      {
+        "pattern": "Upside gap three methods",
+        "value_pct": 4.92
+      },
+      {
+        "pattern": "Three outside down",
+        "value_pct": 4.84
+      },
+      {
+        "pattern": "Two black gapping candles",
+        "value_pct": 4.83
+      },
+      {
+        "pattern": "Evening doji star",
+        "value_pct": 4.79
+      },
+      {
+        "pattern": "Stick sandwich",
+        "value_pct": 4.69
+      }
+    ],
+    "perf_10d_bear_up_pct": [
+      {
+        "pattern": "Three-line strike, bullish",
+        "value_pct": 16.91
+      },
+      {
+        "pattern": "Three black crows",
+        "value_pct": 13.31
+      },
+      {
+        "pattern": "Identical three crows",
+        "value_pct": 10.03
+      },
+      {
+        "pattern": "Evening star",
+        "value_pct": 8.77
+      },
+      {
+        "pattern": "Separating lines, bearish",
+        "value_pct": 8.36
+      },
+      {
+        "pattern": "On neck",
+        "value_pct": 8.32
+      },
+      {
+        "pattern": "Side-by-side white lines, bearish",
+        "value_pct": 7.86
+      },
+      {
+        "pattern": "Hammer, inverted",
+        "value_pct": 7.74
+      },
+      {
+        "pattern": "Three-line strike, bearish",
+        "value_pct": 7.53
+      },
+      {
+        "pattern": "Stick sandwich",
+        "value_pct": 7.43
+      },
+      {
+        "pattern": "Meeting lines, bearish",
+        "value_pct": 7.16
+      },
+      {
+        "pattern": "Matching low",
+        "value_pct": 7.15
+      },
+      {
+        "pattern": "Ladder bottom",
+        "value_pct": 6.76
+      },
+      {
+        "pattern": "Two black gapping candles",
+        "value_pct": 6.45
+      },
+      {
+        "pattern": "In neck",
+        "value_pct": 6.34
+      },
+      {
+        "pattern": "Three-line strike, bearish",
+        "value_pct": 8.81
+      },
+      {
+        "pattern": "Mat hold",
+        "value_pct": 7.21
+      },
+      {
+        "pattern": "Concealing baby swallow",
+        "value_pct": 7.1
+      },
+      {
+        "pattern": "Three white soldiers",
+        "value_pct": 6.41
+      },
+      {
+        "pattern": "Abandoned baby, bullish",
+        "value_pct": 6.04
+      },
+      {
+        "pattern": "Deliberation",
+        "value_pct": 5.24
+      },
+      {
+        "pattern": "Rising three methods",
+        "value_pct": 5.1
+      },
+      {
+        "pattern": "Downside gap three methods",
+        "value_pct": 4.97
+      },
+      {
+        "pattern": "Breakaway, bearish",
+        "value_pct": 4.71
+      },
+      {
+        "pattern": "Three outside up",
+        "value_pct": 4.5
+      },
+      {
+        "pattern": "Morning star",
+        "value_pct": 4.23
+      },
+      {
+        "pattern": "Three-line strike, bullish",
+        "value_pct": 4.23
+      },
+      {
+        "pattern": "Doji star, bearish",
+        "value_pct": 4.09
+      },
+      {
+        "pattern": "Separating lines, bullish",
+        "value_pct": 3.95
+      },
+      {
+        "pattern": "Long day, white",
+        "value_pct": 3.91
+      },
+      {
+        "pattern": "Abandoned baby, bullish",
+        "value_pct": 10.31
+      },
+      {
+        "pattern": "Upside Tasuki gap",
+        "value_pct": 9.2
+      },
+      {
+        "pattern": "Morning star",
+        "value_pct": 8.53
+      },
+      {
+        "pattern": "Separating lines, bullish",
+        "value_pct": 8.05
+      },
+      {
+        "pattern": "Three white soldiers",
+        "value_pct": 7.66
+      },
+      {
+        "pattern": "Three outside up",
+        "value_pct": 7.14
+      },
+      {
+        "pattern": "Ladder bottom",
+        "value_pct": 7.07
+      },
+      {
+        "pattern": "Three inside up",
+        "value_pct": 7.0
+      },
+      {
+        "pattern": "Mat hold",
+        "value_pct": 6.89
+      },
+      {
+        "pattern": "Three-line strike, bearish",
+        "value_pct": 6.82
+      },
+      {
+        "pattern": "Deliberation",
+        "value_pct": 6.72
+      },
+      {
+        "pattern": "Piercing",
+        "value_pct": 6.57
+      },
+      {
+        "pattern": "Engulfing, bullish",
+        "value_pct": 6.31
+      },
+      {
+        "pattern": "Morning doji star",
+        "value_pct": 6.25
+      },
+      {
+        "pattern": "Long day, white",
+        "value_pct": 6.21
+      }
+    ],
+    "perf_10d_bull_down_pct": [],
+    "perf_10d_bear_down_pct": []
+  },
+  "patterns": [
+    {
+      "pattern": "Three-line strike, bearish",
+      "metrics": {
+        "overall_rank": 67.38,
+        "reversal_bull_pct": 84.0,
+        "reversal_bear_pct": 77.0,
+        "perf_10d_bear_up_pct": 7.53
+      }
+    },
+    {
+      "pattern": "Three-line strike, bullish",
+      "metrics": {
+        "overall_rank": 65.23,
+        "reversal_bear_pct": 83.0,
+        "perf_10d_bear_up_pct": 16.91
+      }
+    },
+    {
+      "pattern": "Three black crows",
+      "metrics": {
+        "overall_rank": 59.83,
+        "reversal_bull_pct": 78.0,
+        "reversal_bear_pct": 79.0,
+        "perf_10d_bull_up_pct": 6.95,
+        "perf_10d_bear_up_pct": 13.31
+      }
+    },
+    {
+      "pattern": "Evening star",
+      "metrics": {
+        "overall_rank": 55.85,
+        "reversal_bull_pct": 72.0,
+        "reversal_bear_pct": 72.0,
+        "perf_10d_bull_up_pct": 5.37,
+        "perf_10d_bear_up_pct": 8.77
+      }
+    },
+    {
+      "pattern": "Upside Tasuki gap",
+      "metrics": {
+        "overall_rank": 54.44,
+        "perf_10d_bear_up_pct": 9.2
+      }
+    },
+    {
+      "pattern": "Hammer, inverted",
+      "metrics": {
+        "overall_rank": 51.73,
+        "continuation_bull_pct": 65.0,
+        "continuation_bear_pct": 67.0,
+        "perf_10d_bull_up_pct": 5.03,
+        "perf_10d_bear_up_pct": 7.74
+      }
+    },
+    {
+      "pattern": "Matching low",
+      "metrics": {
+        "overall_rank": 50.0,
+        "perf_10d_bear_up_pct": 7.15
+      }
+    },
+    {
+      "pattern": "Abandoned baby, bullish",
+      "metrics": {
+        "overall_rank": 49.73,
+        "reversal_bull_pct": 70.0,
+        "perf_10d_bear_up_pct": 6.04
+      }
+    },
+    {
+      "pattern": "Two black gapping candles",
+      "metrics": {
+        "overall_rank": 49.64,
+        "continuation_bull_pct": 68.0,
+        "continuation_bear_pct": 69.0,
+        "perf_10d_bull_up_pct": 4.83,
+        "perf_10d_bear_up_pct": 6.45
+      }
+    },
+    {
+      "pattern": "Breakaway, bearish",
+      "metrics": {
+        "overall_rank": 49.24,
+        "reversal_bear_pct": 89.0,
+        "perf_10d_bull_up_pct": 6.66,
+        "perf_10d_bear_up_pct": 4.71
+      }
+    },
+    {
+      "pattern": "Morning star",
+      "metrics": {
+        "overall_rank": 49.05,
+        "reversal_bull_pct": 78.0,
+        "perf_10d_bear_up_pct": 4.23
+      }
+    },
+    {
+      "pattern": "Piercing",
+      "metrics": {
+        "overall_rank": 48.37,
+        "perf_10d_bear_up_pct": 6.57
+      }
+    },
+    {
+      "pattern": "Stick sandwich",
+      "metrics": {
+        "overall_rank": 48.2,
+        "perf_10d_bull_up_pct": 4.69,
+        "perf_10d_bear_up_pct": 7.43
+      }
+    },
+    {
+      "pattern": "Thrusting",
+      "metrics": {
+        "overall_rank": 48.1
+      }
+    },
+    {
+      "pattern": "Meeting lines, bearish",
+      "metrics": {
+        "overall_rank": 48.07,
+        "perf_10d_bear_up_pct": 7.16
+      }
+    },
+    {
+      "pattern": "Three stars in the South",
+      "metrics": {
+        "reversal_bull_pct": 86.0,
+        "reversal_bear_pct": 100.0
+      }
+    },
+    {
+      "pattern": "Three white soldiers",
+      "metrics": {
+        "reversal_bull_pct": 82.0,
+        "reversal_bear_pct": 84.0,
+        "perf_10d_bear_up_pct": 6.41
+      }
+    },
+    {
+      "pattern": "Identical three crows",
+      "metrics": {
+        "reversal_bull_pct": 79.0,
+        "reversal_bear_pct": 72.0,
+        "perf_10d_bull_up_pct": 5.67,
+        "perf_10d_bear_up_pct": 10.03
+      }
+    },
+    {
+      "pattern": "Engulfing, bearish",
+      "metrics": {
+        "reversal_bull_pct": 79.0,
+        "reversal_bear_pct": 82.0
+      }
+    },
+    {
+      "pattern": "Morning doji star",
+      "metrics": {
+        "reversal_bull_pct": 76.0,
+        "reversal_bear_pct": 71.0,
+        "perf_10d_bear_up_pct": 6.25
+      }
+    },
+    {
+      "pattern": "Three outside up",
+      "metrics": {
+        "reversal_bull_pct": 75.0,
+        "reversal_bear_pct": 74.0,
+        "perf_10d_bear_up_pct": 4.5
+      }
+    },
+    {
+      "pattern": "Belt hold, bullish",
+      "metrics": {
+        "reversal_bull_pct": 71.0,
+        "reversal_bear_pct": 71.0
+      }
+    },
+    {
+      "pattern": "Evening doji star",
+      "metrics": {
+        "reversal_bull_pct": 71.0,
+        "reversal_bear_pct": 71.0,
+        "perf_10d_bull_up_pct": 4.79
+      }
+    },
+    {
+      "pattern": "Abandoned baby, bearish",
+      "metrics": {
+        "reversal_bull_pct": 69.0
+      }
+    },
+    {
+      "pattern": "Three outside down",
+      "metrics": {
+        "reversal_bull_pct": 69.0,
+        "perf_10d_bull_up_pct": 4.84
+      }
+    },
+    {
+      "pattern": "Upside gap three methods",
+      "metrics": {
+        "reversal_bear_pct": 72.0,
+        "perf_10d_bull_up_pct": 4.92
+      }
+    },
+    {
+      "pattern": "Breakaway, bullish",
+      "metrics": {
+        "reversal_bear_pct": 71.0
+      }
+    },
+    {
+      "pattern": "Mat hold",
+      "metrics": {
+        "continuation_bull_pct": 78.0,
+        "continuation_bear_pct": 67.0,
+        "perf_10d_bear_up_pct": 7.21
+      }
+    },
+    {
+      "pattern": "Deliberation",
+      "metrics": {
+        "continuation_bull_pct": 77.0,
+        "continuation_bear_pct": 75.0,
+        "perf_10d_bear_up_pct": 5.24
+      }
+    },
+    {
+      "pattern": "Concealing baby swallow",
+      "metrics": {
+        "continuation_bull_pct": 75.0,
+        "perf_10d_bull_up_pct": 5.92,
+        "perf_10d_bear_up_pct": 7.1
+      }
+    },
+    {
+      "pattern": "Rising three methods",
+      "metrics": {
+        "continuation_bull_pct": 74.0,
+        "continuation_bear_pct": 79.0,
+        "perf_10d_bear_up_pct": 5.1
+      }
+    },
+    {
+      "pattern": "Separating lines, bullish",
+      "metrics": {
+        "continuation_bull_pct": 72.0,
+        "continuation_bear_pct": 69.0,
+        "perf_10d_bear_up_pct": 3.95
+      }
+    },
+    {
+      "pattern": "Falling three methods",
+      "metrics": {
+        "continuation_bull_pct": 71.0,
+        "continuation_bear_pct": 67.0
+      }
+    },
+    {
+      "pattern": "Doji star, bearish",
+      "metrics": {
+        "continuation_bull_pct": 69.0,
+        "continuation_bear_pct": 67.0,
+        "perf_10d_bear_up_pct": 4.09
+      }
+    },
+    {
+      "pattern": "Last engulfing top",
+      "metrics": {
+        "continuation_bull_pct": 68.0,
+        "continuation_bear_pct": 67.0
+      }
+    },
+    {
+      "pattern": "Side-by-side white lines, bullish",
+      "metrics": {
+        "continuation_bull_pct": 66.0
+      }
+    },
+    {
+      "pattern": "Last engulfing bottom",
+      "metrics": {
+        "continuation_bull_pct": 65.0,
+        "continuation_bear_pct": 67.0
+      }
+    },
+    {
+      "pattern": "Advance block",
+      "metrics": {
+        "continuation_bull_pct": 64.0
+      }
+    },
+    {
+      "pattern": "Doji star, bullish",
+      "metrics": {
+        "continuation_bull_pct": 64.0,
+        "continuation_bear_pct": 70.0,
+        "perf_10d_bull_up_pct": 5.1
+      }
+    },
+    {
+      "pattern": "Separating lines, bearish",
+      "metrics": {
+        "continuation_bull_pct": 63.0,
+        "continuation_bear_pct": 76.0,
+        "perf_10d_bull_up_pct": 4.93,
+        "perf_10d_bear_up_pct": 8.36
+      }
+    },
+    {
+      "pattern": "Kicking, bearish",
+      "metrics": {
+        "continuation_bear_pct": 80.0
+      }
+    },
+    {
+      "pattern": "13 new price lines",
+      "metrics": {
+        "continuation_bear_pct": 74.0
+      }
+    },
+    {
+      "pattern": "In neck",
+      "metrics": {
+        "continuation_bear_pct": 65.0,
+        "perf_10d_bear_up_pct": 6.34
+      }
+    },
+    {
+      "pattern": "Doji star, collapsing",
+      "metrics": {
+        "perf_10d_bull_up_pct": 7.32
+      }
+    },
+    {
+      "pattern": "Long day, black",
+      "metrics": {
+        "perf_10d_bull_up_pct": 5.11
+      }
+    },
+    {
+      "pattern": "On neck",
+      "metrics": {
+        "perf_10d_bear_up_pct": 8.32
+      }
+    },
+    {
+      "pattern": "Side-by-side white lines, bearish",
+      "metrics": {
+        "perf_10d_bear_up_pct": 7.86
+      }
+    },
+    {
+      "pattern": "Ladder bottom",
+      "metrics": {
+        "perf_10d_bear_up_pct": 6.76
+      }
+    },
+    {
+      "pattern": "Downside gap three methods",
+      "metrics": {
+        "perf_10d_bear_up_pct": 4.97
+      }
+    },
+    {
+      "pattern": "Long day, white",
+      "metrics": {
+        "perf_10d_bear_up_pct": 3.91
+      }
+    },
+    {
+      "pattern": "Three inside up",
+      "metrics": {
+        "perf_10d_bear_up_pct": 7.0
+      }
+    },
+    {
+      "pattern": "Engulfing, bullish",
+      "metrics": {
+        "perf_10d_bear_up_pct": 6.31
+      }
+    }
+  ]
+}
