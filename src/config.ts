@@ -24,6 +24,10 @@ export const config = {
   etherscanKey: process.env.ETHERSCAN_API_KEY ?? "",
   goplusToken: process.env.GOPLUS_ACCESS_TOKEN ?? "",
   coingeckoKey: process.env.COINGECKO_API_KEY ?? "",
+  telegramToken: process.env.TELEGRAM_BOT_TOKEN ?? "",
+  telegramChatId: process.env.TELEGRAM_CHAT_ID ?? "",
+  mexcApiKey: process.env.MEXC_API_KEY ?? "",
+  mexcApiSecret: process.env.MEXC_API_SECRET ?? "",
 } as const;
 
 export const endpoints = {
