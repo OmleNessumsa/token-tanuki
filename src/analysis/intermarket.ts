@@ -16,6 +16,7 @@
  */
 
 import { fetchJson } from "../http.js";
+import { config } from "../config.js";
 
 const BTC_USDT_BIRDEYE_MINT = "So11111111111111111111111111111111111111112"; // Wrapped SOL is just placeholder; real BTC requires CG.
 const COINGECKO_BTC_ID = "bitcoin";
@@ -48,9 +49,13 @@ export async function getIntermarketContext(): Promise<IntermarketContext> {
   if (cached && Date.now() - cachedAt < CACHE_TTL_MS) return cached;
 
   try {
-    // CoinGecko free endpoint — last 7 days of BTC prices, hourly granularity
+    // CoinGecko free endpoint — last 7 days of BTC prices, hourly granularity.
+    // Demo API key (env COINGECKO_API_KEY) gives 30 rpm vs ~5 anonymous.
     const url = `https://api.coingecko.com/api/v3/coins/${COINGECKO_BTC_ID}/market_chart?vs_currency=usd&days=7`;
-    const data = await fetchJson<CgMarketChart>(url);
+    const headers: Record<string, string> = config.coingeckoKey
+      ? { "x-cg-demo-api-key": config.coingeckoKey }
+      : {};
+    const data = await fetchJson<CgMarketChart>(url, { headers });
     const prices = data.prices ?? [];
     if (prices.length < 25) {
       cached = unknown("insufficient BTC price data");

@@ -2,6 +2,7 @@ import type { SecurityReport } from "./security.js";
 import type { ChartScore } from "./chart.js";
 import type { PhaseResult } from "./lifecycle.js";
 import type { DexScreenerPair } from "../schemas.js";
+import type { IntermarketContext } from "./intermarket.js";
 
 export type Verdict = "BUY" | "WAIT" | "AVOID";
 
@@ -21,6 +22,7 @@ export function composeVerdict(
   phase: PhaseResult,
   chart: ChartScore,
   pair: DexScreenerPair | null,
+  intermarket?: IntermarketContext,
 ): FullVerdict {
   const reasons: string[] = [];
   const caveats: string[] = [];
@@ -54,6 +56,17 @@ export function composeVerdict(
     };
   }
 
+  // Murphy intermarket: BTC dump → no alt longs regardless of token-level setup
+  if (intermarket && intermarket.regime === "btc_dump") {
+    reasons.push(`Intermarket: ${intermarket.description}`);
+    return {
+      verdict: "AVOID",
+      composite: Math.round(security.score * 0.3 + chart.score * 0.2),
+      reasons,
+      caveats,
+    };
+  }
+
   // Stage 2: Classify the token. Established tokens get chart-driven verdicts;
   // memecoin-lifecycle tokens stay phase-driven.
   const ageHours = pair?.pairCreatedAt ? (Date.now() - pair.pairCreatedAt) / 3_600_000 : 0;
@@ -68,12 +81,21 @@ export function composeVerdict(
   // Stage 4: Compose composite score (used for confidence display, not gating).
   const liquidityScore = Math.min(100, (liquidityUsd / 200_000) * 100);
   const phaseScore = phase.buyability === "buy" ? 80 : 50;
-  const composite = Math.round(
+  let composite = Math.round(
     security.score * 0.40 +
     phaseScore * 0.20 +
     chart.score * 0.25 +
     liquidityScore * 0.15
   );
+
+  // Apply Murphy intermarket multiplier (1.0 = neutral, 0.7 = headwind, 1.3 = altseason tailwind)
+  if (intermarket && intermarket.regime !== "unknown" && intermarket.altLongMultiplier !== 1.0) {
+    const adjusted = Math.round(composite * intermarket.altLongMultiplier);
+    if (adjusted !== composite) {
+      reasons.push(`Intermarket: ${intermarket.description} (×${intermarket.altLongMultiplier.toFixed(2)})`);
+      composite = Math.min(100, adjusted);
+    }
+  }
 
   reasons.push(`Security ${security.score}/100`);
   if (isEstablished) reasons.push(`Established asset (age ${(ageHours / 24).toFixed(0)}d, liq $${formatUsd(liquidityUsd)}) — chart-driven verdict`);

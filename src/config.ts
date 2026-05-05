@@ -23,6 +23,7 @@ export const config = {
   heliusKey: process.env.HELIUS_API_KEY ?? "",
   etherscanKey: process.env.ETHERSCAN_API_KEY ?? "",
   goplusToken: process.env.GOPLUS_ACCESS_TOKEN ?? "",
+  coingeckoKey: process.env.COINGECKO_API_KEY ?? "",
 } as const;
 
 export const endpoints = {

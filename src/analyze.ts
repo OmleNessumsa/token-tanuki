@@ -10,6 +10,7 @@ import { classifyPhase, type PhaseResult } from "./analysis/lifecycle.js";
 import { scoreChart, type ChartScore } from "./analysis/chart.js";
 import { composeVerdict, type FullVerdict } from "./analysis/verdict.js";
 import { toCandles, type Candle } from "./analysis/indicators.js";
+import { getIntermarketContext, type IntermarketContext } from "./analysis/intermarket.js";
 
 export interface AnalysisResult {
   address: string;
@@ -18,6 +19,7 @@ export interface AnalysisResult {
   security: SecurityReport;
   phase: PhaseResult;
   chart: ChartScore;
+  intermarket: IntermarketContext;
   verdict: FullVerdict;
   candles: { m1: Candle[]; m5: Candle[]; h1: Candle[]; d1: Candle[] };
 }
@@ -28,6 +30,7 @@ export async function analyzeToken(address: string): Promise<AnalysisResult> {
   const pair = pickCanonicalPair(pairs, address);
 
   if (!pair) {
+    const intermarket = await getIntermarketContext();
     return {
       address,
       chain,
@@ -35,6 +38,7 @@ export async function analyzeToken(address: string): Promise<AnalysisResult> {
       security: { findings: [], fatals: [], buyTax: null, sellTax: null, topHolderPct: null, lpLockedOrBurned: null, honeypot: false, score: 0 },
       phase: { phase: "unknown", ageHours: null, ddFromAth: 0, buyability: "avoid", reason: "no pair found" },
       chart: { score: 0, trend: "flat", rsi: null, rsiDivergence: null, recentBullishPatterns: [], recentBearishPatterns: [], chartPatterns: [], volumeConfirmation: false, notes: ["no chart data"] },
+      intermarket,
       verdict: { verdict: "AVOID", composite: 0, reasons: ["No DEX pair found for address"], caveats: [] },
       candles: { m1: [], m5: [], h1: [], d1: [] },
     };
@@ -88,9 +92,10 @@ export async function analyzeToken(address: string): Promise<AnalysisResult> {
 
   const phase = classifyPhase(candles.m1, candles.m5, pair.pairCreatedAt ?? null);
   const chart = scoreChart(candles.d1, candles.h1.length > 0 ? candles.h1 : candles.m5);
-  const verdict = composeVerdict(security, phase, chart, pair);
+  const intermarket = await getIntermarketContext();
+  const verdict = composeVerdict(security, phase, chart, pair, intermarket);
 
-  return { address, chain, pair, security, phase, chart, verdict, candles };
+  return { address, chain, pair, security, phase, chart, intermarket, verdict, candles };
 }
 
 async function resolveChain(address: string): Promise<Chain> {
