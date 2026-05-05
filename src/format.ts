@@ -50,6 +50,13 @@ export function formatVerdict(result: AnalysisResult): string {
 
   lines.push(pc.bold(`Chart ${barScore(chart.score)} ${chart.score}/100`));
   for (const note of chart.notes) lines.push(`  · ${note}`);
+  if (chart.chartPatterns.length > 0) {
+    lines.push(pc.bold("  Multi-bar patterns:"));
+    for (const p of chart.chartPatterns) {
+      const dir = p.bullish ? pc.green("▲") : pc.red("▼");
+      lines.push(`    ${dir} ${p.pattern} (${(p.confidence * 100).toFixed(0)}%) — ${p.description}`);
+    }
+  }
   lines.push("");
 
   lines.push(pc.bold("Reasoning:"));

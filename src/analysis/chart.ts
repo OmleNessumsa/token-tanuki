@@ -1,7 +1,8 @@
 import type { Candle } from "./indicators.js";
 import { ema, rsi, sma, atr, detectRsiDivergence, trendDirection, pctChange, maxDrawdown } from "./indicators.js";
 import { detectCandlePatterns, recentPatterns } from "./patterns.js";
-import { getCandleWeight } from "./weights.js";
+import { detectChartPatterns, bestChartPatterns, type ChartPatternHit } from "./chart-patterns.js";
+import { getCandleWeight, getChartPatternWeight } from "./weights.js";
 
 export interface ChartScore {
   score: number; // 0-100
@@ -10,6 +11,7 @@ export interface ChartScore {
   rsiDivergence: "bullish" | "bearish" | null;
   recentBullishPatterns: string[];
   recentBearishPatterns: string[];
+  chartPatterns: ChartPatternHit[];
   volumeConfirmation: boolean;
   notes: string[];
 }
@@ -66,6 +68,16 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
   const volumeConfirmation = lastVolSma > 0 && recentVol > lastVolSma * 1.5;
   if (volumeConfirmation) { score += 5; notes.push("Volume > 1.5x avg"); }
 
+  // Multi-bar chart patterns (run on whichever timeframe has more data — daily preferred)
+  const seriesForChart = daily.length >= 30 ? daily : hourly;
+  const chartPatterns = bestChartPatterns(detectChartPatterns(seriesForChart));
+  for (const hit of chartPatterns) {
+    const w = getChartPatternWeight(hit.pattern);
+    // Apply weight scaled by detection confidence (0..1)
+    const contribution = w.weight * hit.confidence;
+    score += hit.bullish ? contribution : -contribution;
+  }
+
   if (dailyCloses.length >= 30) {
     const dd = maxDrawdown(dailyCloses);
     if (dd > 0.7) { score -= 8; notes.push(`Max drawdown ${(dd * 100).toFixed(0)}%`); }
@@ -80,12 +92,13 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
   void ema; void atr;
 
   return {
-    score: Math.max(0, Math.min(100, score)),
+    score: Math.max(0, Math.min(100, Math.round(score))),
     trend,
     rsi: lastRsi,
     rsiDivergence: rsiDiv,
     recentBullishPatterns: bullish,
     recentBearishPatterns: bearish,
+    chartPatterns,
     volumeConfirmation,
     notes,
   };
