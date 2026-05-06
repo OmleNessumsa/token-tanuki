@@ -15,7 +15,8 @@ import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { getOpenPositions, getStopOrders } from "../src/clients/mexc-private.js";
-import { getFuturesTicker, getFundingRate, analyzeFundingRate } from "../src/clients/mexc-futures.js";
+import { getFuturesTicker, getFundingRate, analyzeFundingRate, getFuturesKlines } from "../src/clients/mexc-futures.js";
+import { atr, swings } from "../src/analysis/indicators.js";
 import { sendTelegram } from "../src/clients/telegram.js";
 
 const STATE_DIR = process.env.CRYPTOTRADER_STATE_DIR ?? join(homedir(), ".cryptotrader");
@@ -49,6 +50,63 @@ function categorizeBuffer(pct: number): BufferCategory {
   if (pct < 3) return "urgent";
   if (pct < 5) return "warning";
   return "safe";
+}
+
+/**
+ * Suggested stop-loss for an OPEN position. Takes the tighter of:
+ *   - structure-based: most recent swing low/high + 0.5×ATR buffer
+ *   - ATR-based: current price ± 2×ATR
+ * Capped to fit inside liquidation budget (90% of liq distance).
+ *
+ * For a LONG that's already in profit, suggests at minimum break-even.
+ */
+async function suggestStopLoss(
+  symbol: string,
+  side: "LONG" | "SHORT",
+  entryPrice: number,
+  currentPrice: number,
+  liqPrice: number,
+): Promise<{ price: number; rationale: string } | null> {
+  const candles = await getFuturesKlines(symbol, "Min60", 100);
+  if (candles.length < 20) return null;
+  const atrSeries = atr(candles, 14);
+  const lastAtr = atrSeries[atrSeries.length - 1] ?? 0;
+  if (lastAtr <= 0) return null;
+
+  const sw = swings(candles, 3);
+  const lastSwingLow = [...sw].reverse().find((s) => s.kind === "low")?.price ?? null;
+  const lastSwingHigh = [...sw].reverse().find((s) => s.kind === "high")?.price ?? null;
+
+  const inProfit = side === "LONG" ? currentPrice > entryPrice : currentPrice < entryPrice;
+  const liqDist = Math.abs(currentPrice - liqPrice);
+  const safeMaxDist = liqDist * 0.9;
+
+  let candidates: Array<{ price: number; label: string }> = [];
+  if (side === "LONG") {
+    candidates.push({ price: currentPrice - 2 * lastAtr, label: "2×ATR" });
+    if (lastSwingLow !== null && lastSwingLow < currentPrice) {
+      candidates.push({ price: lastSwingLow - 0.5 * lastAtr, label: "swing low − ATR/2" });
+    }
+    if (inProfit) candidates.push({ price: entryPrice, label: "break-even" });
+    // Tightest (= closest to current, but not too tight) wins
+    candidates.sort((a, b) => b.price - a.price);
+  } else {
+    candidates.push({ price: currentPrice + 2 * lastAtr, label: "2×ATR" });
+    if (lastSwingHigh !== null && lastSwingHigh > currentPrice) {
+      candidates.push({ price: lastSwingHigh + 0.5 * lastAtr, label: "swing high + ATR/2" });
+    }
+    if (inProfit) candidates.push({ price: entryPrice, label: "break-even" });
+    candidates.sort((a, b) => a.price - b.price);
+  }
+
+  // Pick the candidate with the smallest distance to current that still fits within liq buffer
+  for (const c of candidates) {
+    const dist = Math.abs(currentPrice - c.price);
+    if (dist <= safeMaxDist) return { price: c.price, rationale: c.label };
+  }
+  // None fit → cap at 80% of liq distance
+  const cappedPrice = side === "LONG" ? currentPrice - safeMaxDist * 0.9 : currentPrice + safeMaxDist * 0.9;
+  return { price: cappedPrice, rationale: "liq-buffer cap (no structure stop fits)" };
 }
 
 const FUNDING_SEVERITY: Record<string, number> = {
@@ -131,9 +189,16 @@ async function main(): Promise<void> {
 
     // 3) Missing SL — fire once when first detected (don't re-spam if user keeps it off)
     if (!hasSL && (prev === undefined || prev.hasSL === true)) {
-      // either new position or SL was just removed
+      const side = dir === 1 ? "LONG" : "SHORT";
+      const suggestion = await suggestStopLoss(p.symbol, side, p.holdAvgPrice, ticker.lastPrice, p.liquidatePrice);
       alertLines.push(`🛑 <b>No stop-loss</b> on ${asset} ($${p.im.toFixed(0)} margin at risk)`);
-      alertLines.push(`👉 Set TP/SL → Market SL → trigger price near current`);
+      if (suggestion) {
+        const distPct = Math.abs(suggestion.price - ticker.lastPrice) / ticker.lastPrice * 100;
+        const dec = suggestion.price >= 1 ? (suggestion.price >= 1000 ? 2 : 4) : 6;
+        alertLines.push(`👉 Suggested SL: <b>$${suggestion.price.toFixed(dec)}</b> (${distPct.toFixed(2)}% ${side === "LONG" ? "below" : "above"}, ${suggestion.rationale})`);
+      } else {
+        alertLines.push(`👉 Set TP/SL → Market SL → trigger near current`);
+      }
       if (sortRank(severity) > sortRank("warning")) severity = "warning";
     }
 
