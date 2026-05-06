@@ -130,6 +130,7 @@ function emptyChart(): ChartScore {
     recentBearishPatterns: [],
     chartPatterns: [],
     breakout: null,
+    setups: [],
     volumeConfirmation: false,
     notes: [],
   };

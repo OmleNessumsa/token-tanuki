@@ -22,6 +22,7 @@ import {
 } from "./clients/mexc-futures.js";
 import { scoreChart, type ChartScore } from "./analysis/chart.js";
 import { getIntermarketContext, type IntermarketContext } from "./analysis/intermarket.js";
+import { trendTemplate, type TrendTemplateResult } from "./analysis/trend-template.js";
 import type { Candle } from "./analysis/indicators.js";
 
 export type Timeframe = "5m" | "15m" | "1h" | "4h" | "1d";
@@ -56,6 +57,7 @@ export interface FuturesAnalysis {
   ticker: FuturesTicker | null;
   funding: FundingAnalysis | null;
   intermarket: IntermarketContext;
+  trendTemplate: TrendTemplateResult | null;  // Minervini SEPA — Stage 2 check on daily candles
   timeframes: TfAnalysis[];
   /** "with-trend" if HTF (4h+1d) and LTF (15m+1h) agree on direction. */
   confluence: {
@@ -125,6 +127,7 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
       funding: null,
       intermarket,
       timeframes: [],
+      trendTemplate: null,
       confluence: { htfDirection: "neutral", ltfDirection: "neutral", aligned: false, score: 0, summary: "no perp listed" },
       verdict: { side: "FLAT", confidence: "low", reasons: [`${upper} has no MEXC futures listing`], caveats: [] },
     };
@@ -146,6 +149,11 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
     const chart = scoreChart(candles, candles);
     return { timeframe: tf, candles, chart, direction: chartDirection(chart) };
   });
+
+  // Minervini SEPA — run trend template on daily candles
+  // Source: Minervini, "Trade Like a Stock Market Wizard" (2013)
+  const dailyCandles = timeframes.find((t) => t.timeframe === "1d")?.candles ?? [];
+  const tt = trendTemplate(dailyCandles);
 
   const htfTfs = timeframes.filter((t) => t.timeframe === "4h" || t.timeframe === "1d");
   const ltfTfs = timeframes.filter((t) => t.timeframe === "15m" || t.timeframe === "1h");
@@ -175,6 +183,16 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
   } else if (intermarket.regime === "altseason" && perpSymbol !== "BTC_USDT") {
     composite *= 1.2;
   }
+
+  // Minervini SEPA: if 6+/7 criteria pass → +5 (high-conviction "Stage 2"); 4-5 → 0; <4 → -5 for longs
+  if (tt.criteriaTotal > 0) {
+    const ratio = tt.criteriaPassed / tt.criteriaTotal;
+    if (htfDirection === "bullish") {
+      if (ratio >= 6 / 7) composite += 5;
+      else if (ratio < 4 / 7) composite -= 5;
+    }
+  }
+
   composite = Math.max(0, Math.min(100, Math.round(composite)));
 
   // Verdict
@@ -218,12 +236,23 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
     caveats.push("Shorts already crowded (paid to long) — squeeze risk");
   }
 
+  // Minervini Stage warning for LONGs
+  if (side === "LONG" && tt.criteriaTotal > 0) {
+    const ratio = tt.criteriaPassed / tt.criteriaTotal;
+    if (ratio < 4 / 7) {
+      caveats.push(`Minervini SEPA only ${tt.criteriaPassed}/${tt.criteriaTotal} criteria — NOT in Stage 2 (counter-trend long)`);
+    } else if (ratio >= 6 / 7) {
+      reasons.push(`Minervini SEPA ${tt.criteriaPassed}/${tt.criteriaTotal} ✓ — confirmed Stage 2 uptrend`);
+    }
+  }
+
   return {
     asset: upper,
     perpSymbol,
     ticker,
     funding,
     intermarket,
+    trendTemplate: tt,
     timeframes,
     confluence: { htfDirection, ltfDirection, aligned, score: composite, summary: `${aligned ? "ALIGNED" : "MIXED"} | composite ${composite}/100` },
     verdict: { side, confidence, reasons, caveats },

@@ -1,11 +1,12 @@
 import type { Candle } from "./indicators.js";
 import { ema, rsi, sma, atr, detectRsiDivergence, trendDirection, pctChange, maxDrawdown } from "./indicators.js";
 import { detectCandlePatterns, recentPatterns } from "./patterns.js";
-import { detectChartPatterns, bestChartPatterns, type ChartPatternHit } from "./chart-patterns.js";
-import { refineHit } from "./edwards-magee.js";
+import { detectChartPatterns, bestChartPatterns } from "./chart-patterns.js";
+import { refineHit, type RefinedHit } from "./edwards-magee.js";
 import { tdSequential, recentTdSignal } from "./demark.js";
 import { kst, kstCrossover } from "./indicators.js";
 import { detectBreakout, type BreakoutResult } from "./breakout.js";
+import { detectAllSetups, type SetupSignal } from "./setups.js";
 import { getCandleWeight, getChartPatternWeight } from "./weights.js";
 
 export interface ChartScore {
@@ -15,8 +16,9 @@ export interface ChartScore {
   rsiDivergence: "bullish" | "bearish" | null;
   recentBullishPatterns: string[];
   recentBearishPatterns: string[];
-  chartPatterns: ChartPatternHit[];
+  chartPatterns: RefinedHit[];
   breakout: BreakoutResult | null;
+  setups: SetupSignal[];
   volumeConfirmation: boolean;
   notes: string[];
 }
@@ -106,6 +108,16 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
     notes.push(`Breakout: ${breakout.description}`);
   }
 
+  // Connors/Raschke short-term setups: Holy Grail (ADX>30 + EMA20 pullback), Turtle Soup, 80-20
+  // Source: Connors & Raschke, "Street Smarts" (1996)
+  const setups = detectAllSetups(seriesForChart);
+  for (const s of setups) {
+    if (!s.triggered) continue;
+    const weight = s.setup === "holyGrail" ? 8 : s.setup === "turtleSoup" ? 6 : 5;
+    score += s.direction === "long" ? weight : -weight;
+    notes.push(`Connors ${s.setup} ${s.direction}: ${s.rationale}`);
+  }
+
   if (dailyCloses.length >= 30) {
     const dd = maxDrawdown(dailyCloses);
     if (dd > 0.7) { score -= 8; notes.push(`Max drawdown ${(dd * 100).toFixed(0)}%`); }
@@ -128,6 +140,7 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
     recentBearishPatterns: bearish,
     chartPatterns,
     breakout,
+    setups,
     volumeConfirmation,
     notes,
   };

@@ -86,16 +86,136 @@ async function sendHelp(chatId: number): Promise<void> {
     "/positions — live PnL + actions per open trade",
     "/scan — analyseer een symbol (prompt)",
     "/top — toon huidige top setups",
+    "/audit SYMBOL — per-boek breakdown van het signaal",
     "",
     "<b>Of typ direct een symbol:</b>",
     "<code>BCH</code> · <code>SOL</code> · <code>FARTCOIN</code> — krijg de trade card",
     "",
     "<b>Push alerts</b>",
     "Je krijgt vanzelf:",
-    "• Position report elke 30 min (via cron — nog te activeren)",
     "• Nieuwe high-conviction setups zodra ze verschijnen",
+    "• Watchlist alerts (HYPE/PENGU 15m bullish reclaim)",
   ].join("\n");
   await sendKbd(chatId, text, MAIN_MENU);
+}
+
+/**
+ * /audit SYMBOL — book-by-book breakdown showing exactly which TA references
+ * contributed to the verdict and how much. The "guarantee all books are applied" feature.
+ */
+async function buildAuditCard(asset: string): Promise<{ text: string; keyboard: ReplyMarkup }> {
+  const a = await analyzeFutures(asset);
+  if (!a.perpSymbol) {
+    return {
+      text: `❌ <b>${asset}</b> — geen MEXC perp listing`,
+      keyboard: { inline_keyboard: [[{ text: "« Menu", callback_data: "cmd:start" }]] },
+    };
+  }
+  const lines: string[] = [];
+  lines.push(`🔬 <b>Audit: ${asset}</b> — composite ${a.confluence.score}/100 · ${a.verdict.side} ${a.verdict.confidence}`);
+  lines.push("");
+
+  // Per-TF table (full MTF detail here)
+  lines.push("<b>Per-timeframe (Murphy MTF):</b>");
+  for (const t of a.timeframes) {
+    const dirEmoji = t.direction === "bullish" ? "🟢" : t.direction === "bearish" ? "🔴" : "⚪";
+    lines.push(`  ${t.timeframe.padEnd(4)} ${dirEmoji} ${t.direction.padEnd(8)} score ${String(t.chart.score).padStart(3)} · trend ${t.chart.trend} · RSI ${t.chart.rsi?.toFixed(0) ?? "?"}`);
+  }
+  lines.push(`  → HTF (4h+1d): ${a.confluence.htfDirection} · LTF (15m+1h): ${a.confluence.ltfDirection} · ${a.confluence.aligned ? "ALIGNED ✅" : "MIXED ⚠️"}`);
+  lines.push("");
+
+  // Aggregate signals from each TF for the audit
+  const dailyTf = a.timeframes.find((t) => t.timeframe === "1d");
+  const fourTf = a.timeframes.find((t) => t.timeframe === "4h");
+  const auditTf = dailyTf ?? fourTf;
+  const ch = auditTf?.chart;
+
+  lines.push("<b>Per-book contributions (1d chart):</b>");
+
+  // Bulkowski chart patterns
+  const cp = ch?.chartPatterns ?? [];
+  const bullCp = cp.filter((p) => p.bullish);
+  const bearCp = cp.filter((p) => !p.bullish);
+  if (cp.length > 0) {
+    lines.push(`📕 <b>Bulkowski Chart Patterns</b>`);
+    for (const p of cp.slice(0, 3)) {
+      const arrow = p.bullish ? "🟢" : "🔴";
+      lines.push(`  ${arrow} ${p.pattern} (${(p.confidence * 100).toFixed(0)}% conf)`);
+    }
+  } else {
+    lines.push(`📕 <b>Bulkowski Chart Patterns</b> — geen pattern gedetecteerd`);
+  }
+
+  // Bulkowski candlesticks
+  const candles = [...(ch?.recentBullishPatterns ?? []), ...(ch?.recentBearishPatterns ?? [])];
+  if (candles.length > 0) {
+    lines.push(`📕 <b>Bulkowski Candlesticks</b>: ${candles.join(", ")}`);
+  } else {
+    lines.push(`📕 <b>Bulkowski Candlesticks</b> — geen recente`);
+  }
+
+  // Edwards/Magee — refined patterns
+  const refined = cp.filter((p) => p.geometryScore > 0);
+  if (refined.length > 0) {
+    const top = refined[0]!;
+    lines.push(`📗 <b>Edwards/Magee geometry</b>: ${top.pattern} score ${(top.geometryScore * 100).toFixed(0)}/100`);
+  } else {
+    lines.push(`📗 <b>Edwards/Magee</b> — n/a (no chart pattern to refine)`);
+  }
+
+  // Murphy — RSI / trend
+  if (ch) {
+    lines.push(`📘 <b>Murphy indicators</b>: trend=${ch.trend} · RSI=${ch.rsi?.toFixed(0) ?? "?"} · divergence=${ch.rsiDivergence ?? "none"}`);
+  }
+
+  // Pring KST
+  const kstNote = ch?.notes.find((n) => n.includes("KST"));
+  lines.push(`📘 <b>Pring KST</b>: ${kstNote ?? "no crossover"}`);
+
+  // DeMark TD
+  const tdNote = ch?.notes.find((n) => n.includes("DeMark"));
+  lines.push(`📘 <b>DeMark TD Sequential</b>: ${tdNote ?? "no signal"}`);
+
+  // Donchian breakout
+  if (ch?.breakout) {
+    const b = ch.breakout;
+    lines.push(`📘 <b>Donchian breakout</b>: ${b.state} · relVol ${b.relativeVolume.toFixed(2)}× ${b.volumeConfirmed ? "✅" : "⚠"}`);
+  }
+
+  // Connors/Raschke setups
+  const fired = ch?.setups.filter((s) => s.triggered) ?? [];
+  if (fired.length > 0) {
+    lines.push(`📘 <b>Connors/Raschke setups</b>:`);
+    for (const s of fired) lines.push(`  🔔 ${s.setup} ${s.direction} — ${s.rationale.slice(0, 70)}`);
+  } else {
+    lines.push(`📘 <b>Connors/Raschke setups</b> — geen triggered`);
+  }
+
+  // Minervini SEPA
+  if (a.trendTemplate && a.trendTemplate.criteriaTotal > 0) {
+    const tt = a.trendTemplate;
+    const stage = tt.passed ? "Stage 2 ✅" : tt.criteriaPassed >= tt.criteriaTotal * 6 / 7 ? "near Stage 2" : tt.criteriaPassed >= tt.criteriaTotal * 4 / 7 ? "transitional" : "Stage 1 ❌";
+    lines.push(`📕 <b>Minervini SEPA</b>: ${tt.criteriaPassed}/${tt.criteriaTotal} criteria → ${stage}`);
+  }
+
+  // Murphy Intermarket
+  lines.push(`📘 <b>Murphy intermarket</b>: ${a.intermarket.regime} (BTC ${a.intermarket.btcChange24hPct?.toFixed(2) ?? "?"}% 24h)`);
+
+  // Funding (futures-specific)
+  if (a.funding) lines.push(`💸 <b>Funding</b>: ${a.funding.regime} (${a.funding.apr.toFixed(1)}% APR)`);
+
+  lines.push("");
+  lines.push(`<i>Voor full trade card: tap symbool of typ ${asset}</i>`);
+
+  return {
+    text: lines.join("\n"),
+    keyboard: {
+      inline_keyboard: [
+        [{ text: "📋 Trade card", callback_data: `card:${asset}` }, { text: "🔄 Re-audit", callback_data: `audit:${asset}` }],
+        [{ text: "« Menu", callback_data: "cmd:start" }],
+      ],
+    },
+  };
 }
 
 /** Build a trade card formatted for Telegram, with retry-with-stop button. */
@@ -117,8 +237,12 @@ async function buildTradeCard(asset: string): Promise<{ text: string; keyboard: 
     lines.push(`Price $${fmtPx(a.ticker.lastPrice)} · 24h ${sign}${ch24.toFixed(2)}%`);
   }
   if (a.funding) lines.push(`Funding: ${a.funding.regime} (${(a.funding.ratePerCycle * 100).toFixed(4)}%/cycle)`);
-  const dirGlyph = (d: string) => d === "bullish" ? "▲" : d === "bearish" ? "▼" : "=";
-  lines.push(`MTF: ${a.timeframes.map((t) => `${t.timeframe}${dirGlyph(t.direction)}${t.chart.score}`).join(" ")}`);
+
+  // Compact MTF summary — full table available via /audit
+  const htfStatus = a.confluence.htfDirection;
+  const ltfStatus = a.confluence.ltfDirection;
+  const alignSym = a.confluence.aligned ? "✅ ALIGNED" : "⚠️ MIXED";
+  lines.push(`HTF (4h+1d): <b>${htfStatus}</b> · LTF (15m+1h): <b>${ltfStatus}</b> · ${alignSym}`);
 
   if (plan && a.ticker) {
     const current = a.ticker.lastPrice;
@@ -150,7 +274,8 @@ async function buildTradeCard(asset: string): Promise<{ text: string; keyboard: 
 
   const keyboard: ReplyMarkup = {
     inline_keyboard: [
-      [{ text: "🔄 Refresh", callback_data: `card:${asset}` }, { text: "« Menu", callback_data: "cmd:start" }],
+      [{ text: "🔄 Refresh", callback_data: `card:${asset}` }, { text: "🔬 Audit", callback_data: `audit:${asset}` }],
+      [{ text: "« Menu", callback_data: "cmd:start" }],
     ],
   };
   return { text: lines.join("\n"), keyboard };
@@ -248,6 +373,13 @@ async function processUpdate(u: TgUpdate): Promise<void> {
     if (text === "/positions") return handlePositions(chatId);
     if (text === "/scan") return handleScanPrompt(chatId);
     if (text === "/top") return handleTop(chatId);
+    if (text.startsWith("/audit ")) {
+      const sym = text.slice(7).trim().replace(/[^A-Za-z0-9]/g, "");
+      if (!sym) { await sendKbd(chatId, "Gebruik: <code>/audit SYMBOL</code>", MAIN_MENU); return; }
+      await tgCall("sendChatAction", { chat_id: chatId, action: "typing" }).catch(() => undefined);
+      const card = await buildAuditCard(sym.toUpperCase());
+      return sendKbd(chatId, card.text, card.keyboard);
+    }
     // Conversational state: awaiting symbol
     const state = chatState.get(chatId);
     if (state?.kind === "awaiting_scan_symbol" && Date.now() - state.ts < STATE_TTL_MS) {
@@ -274,6 +406,12 @@ async function processUpdate(u: TgUpdate): Promise<void> {
     if (cb.data?.startsWith("card:")) {
       const asset = cb.data.slice(5);
       return handleScanSymbol(chatId, asset);
+    }
+    if (cb.data?.startsWith("audit:")) {
+      const asset = cb.data.slice(6);
+      await tgCall("sendChatAction", { chat_id: chatId, action: "typing" }).catch(() => undefined);
+      const card = await buildAuditCard(asset);
+      return sendKbd(chatId, card.text, card.keyboard);
     }
   }
 }
