@@ -19,14 +19,15 @@ import { sendTelegram } from "../src/clients/telegram.js";
 
 interface MexcTicker { symbol: string; amount24: number; }
 
-function parseArgs(argv: readonly string[]): { threshold: number; horizon: number; perms: number; top: number; cooldown: number; sendTg: boolean } {
+function parseArgs(argv: readonly string[]): { threshold: number; horizon: number; perms: number; top: number; cooldown: number; sendTg: boolean; requireBreakout: boolean } {
   const args: Record<string, string | true> = {};
+  const flagOnlyKeys = new Set(["send-telegram", "require-breakout"]);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a.startsWith("--")) {
       const key = a.slice(2);
       const next = argv[i + 1];
-      if (next && !next.startsWith("--") && key !== "send-telegram") { args[key] = next; i++; }
+      if (next && !next.startsWith("--") && !flagOnlyKeys.has(key)) { args[key] = next; i++; }
       else args[key] = true;
     }
   }
@@ -37,6 +38,7 @@ function parseArgs(argv: readonly string[]): { threshold: number; horizon: numbe
     top: typeof args.top === "string" ? parseInt(args.top) : 30,
     cooldown: typeof args.cooldown === "string" ? parseInt(args.cooldown) : 5,
     sendTg: args["send-telegram"] === true,
+    requireBreakout: args["require-breakout"] === true,
   };
 }
 
@@ -76,7 +78,10 @@ async function main(): Promise<void> {
     stopAtrMult: 2,
     warmupBars: 200,
     cooldownBars: args.cooldown,
+    requireBreakout: args.requireBreakout,
   };
+  const variantLabel = args.requireBreakout ? "BREAKOUT-ONLY" : "BASELINE";
+  process.stderr.write(`Variant: ${variantLabel}${args.requireBreakout ? " (composite ≥X AND Donchian breakout)" : " (composite ≥X only)"}\n`);
 
   process.stderr.write("[3/3] running strategy on real data + " + args.perms + " permutations...\n");
   const startTs = Date.now();
@@ -95,7 +100,7 @@ async function main(): Promise<void> {
   const r = result.realStats;
   console.log("");
   console.log("═══════════════════════════════════════════════════════════════");
-  console.log("  ARONSON BACKTEST — composite ≥" + args.threshold + " LONG, " + args.horizon + "-bar hold, 2×ATR stop");
+  console.log("  ARONSON BACKTEST [" + variantLabel + "] — composite ≥" + args.threshold + " LONG, " + args.horizon + "-bar hold, 2×ATR stop");
   console.log("═══════════════════════════════════════════════════════════════");
   console.log("");
   console.log(`Trades:            ${r.trades}`);
@@ -132,8 +137,8 @@ async function main(): Promise<void> {
   if (args.sendTg) {
     const verdict = result.significant ? "✅ SIGNIFICANT EDGE" : "❌ NO STAT EDGE";
     const lines = [
-      `🔬 <b>Aronson Backtest</b>`,
-      `Threshold: composite ≥${args.threshold} · ${args.horizon}d hold · 2×ATR stop`,
+      `🔬 <b>Aronson Backtest [${variantLabel}]</b>`,
+      `Threshold: composite ≥${args.threshold}${args.requireBreakout ? " + breakout required" : ""} · ${args.horizon}d hold · 2×ATR stop`,
       "",
       `<b>Real performance:</b>`,
       `  Trades: ${r.trades}`,

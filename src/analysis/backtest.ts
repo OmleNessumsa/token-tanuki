@@ -52,6 +52,8 @@ export interface BacktestConfig {
   warmupBars: number;
   /** Optional: minimum bars between entries on same instrument. */
   cooldownBars: number;
+  /** If true, only fire when scoreChart's Donchian breakout signal is present. */
+  requireBreakout?: boolean;
 }
 
 const DEFAULT_CONFIG: BacktestConfig = {
@@ -60,16 +62,17 @@ const DEFAULT_CONFIG: BacktestConfig = {
   stopAtrMult: 2,
   warmupBars: 200,
   cooldownBars: 5,
+  requireBreakout: false,
 };
 
 /**
  * Simulate the daily-chart-score at a specific bar index using only candles[0..i].
  * Returns the same shape scoreChart returns for the slice.
  */
-function scoreAtBar(candles: readonly Candle[], i: number): { score: number; trend: "up" | "down" | "flat" } {
+function scoreAtBar(candles: readonly Candle[], i: number): { score: number; trend: "up" | "down" | "flat"; hasBreakout: boolean } {
   const slice = candles.slice(0, i + 1);
   const result = scoreChart(slice, slice);
-  return { score: result.score, trend: result.trend };
+  return { score: result.score, trend: result.trend, hasBreakout: result.breakout !== null };
 }
 
 /**
@@ -93,6 +96,7 @@ export function runStrategyOnSeries(
     // LONG only — score above threshold AND not in clear downtrend
     if (score.score < config.thresholdComposite) continue;
     if (score.trend === "down") continue;
+    if (config.requireBreakout && !score.hasBreakout) continue;
 
     const entryPrice = candles[i]!.c;
     const atrIdx = i - 1; // ATR series starts at index 14, so atrSeries[i - 14] for bar i
