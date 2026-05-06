@@ -110,9 +110,11 @@ function formatPlan(a: FuturesAnalysis, plan: TradePlan | null, args: CliArgs): 
   lines.push(`  ${pc.bold("Stop:")}       $${fmtPx(plan.stop.price)}  ${stopColor(`(${plan.stop.distancePct.toFixed(2)}% ${plan.side === "LONG" ? "below" : "above"}, ${plan.stop.method})`)}`);
   lines.push(`  ${pc.bold("Liq:")}        $${fmtPx(plan.liquidation.price)}  ${pc.dim(`(${plan.liquidation.bufferPct.toFixed(2)}% buffer)`)}`);
   lines.push(`  ${pc.bold("Targets:")}`);
-  for (const t of plan.targets) {
+  const tpClosePct = [50, 30, 20];
+  for (let i = 0; i < Math.min(3, plan.targets.length); i++) {
+    const t = plan.targets[i]!;
     const rrColor = t.rr >= 3 ? pc.green : t.rr >= 2 ? pc.cyan : pc.yellow;
-    lines.push(`    → $${fmtPx(t.price).padEnd(10)} ${rrColor(`R:R ${t.rr.toFixed(2)}`)}  ${pc.dim(t.rationale)}`);
+    lines.push(`    TP${i + 1} → $${fmtPx(t.price).padEnd(10)} ${rrColor(`R:R ${t.rr.toFixed(2)}`)}  close ${tpClosePct[i]}%  ${pc.dim(t.rationale)}`);
   }
   lines.push("");
   lines.push(`  ${pc.bold("Position:")}   ${plan.positionSizing.units.toFixed(4)} ${a.asset} = ${fmtUsd(plan.positionSizing.notionalUsd)} notional`);

@@ -130,8 +130,20 @@ async function buildTradeCard(asset: string): Promise<{ text: string; keyboard: 
     lines.push(`<b>Plan @ 20x / $10k:</b>`);
     lines.push(`Entry $${fmtPx(plan.entry.ideal)} · now $${fmtPx(current)} (${sign}${deltaPct.toFixed(2)}%) ${status}`);
     lines.push(`Stop $${fmtPx(plan.stop.price)} (${plan.stop.distancePct.toFixed(2)}% ${plan.side === "LONG" ? "below" : "above"})`);
-    const t0 = plan.targets[0];
-    if (t0) lines.push(`Target $${fmtPx(t0.price)} (R:R ${t0.rr.toFixed(2)})`);
+
+    // Multi-TP — show TP1/TP2/TP3 with suggested partial-close % (50/30/20 scale-out)
+    const tps = plan.targets.slice(0, 3);
+    const tpClosePct = [50, 30, 20];
+    if (tps.length > 0) {
+      lines.push(`<b>Targets:</b>`);
+      for (let i = 0; i < tps.length; i++) {
+        const t = tps[i]!;
+        const movePct = ((t.price - current) / current) * 100 * (plan.side === "LONG" ? 1 : -1);
+        lines.push(`  TP${i + 1} $${fmtPx(t.price)} · ${t.rr.toFixed(2)}R · +${movePct.toFixed(1)}% · close ${tpClosePct[i]}%`);
+      }
+      const expectedR = tps.reduce((acc, t, i) => acc + (t.rr * (tpClosePct[i] ?? 0) / 100), 0);
+      lines.push(`<i>Weighted expected: ${expectedR.toFixed(2)}R if all TPs hit per plan</i>`);
+    }
     lines.push(`Size ${plan.positionSizing.units.toFixed(2)} ${asset} = $${plan.positionSizing.notionalUsd.toFixed(0)} · margin $${plan.positionSizing.marginUsd.toFixed(0)}`);
   }
 

@@ -139,10 +139,14 @@ async function main(): Promise<void> {
     const status = entryStatus(plan.side, current, plan.entry.ideal);
     const deltaSign = status.deltaPct >= 0 ? "+" : "";
     const stop = plan.stop.price;
+    const tps = plan.targets.slice(0, 3);
+    const tpStr = tps.length > 0
+      ? tps.map((t, i) => `TP${i + 1} $${fmtPx(t.price)} (${t.rr.toFixed(1)}R)`).join(" · ")
+      : "no TPs";
     return [
       `<b>${asset}</b> · ${analysis.confluence.score} · 24h ${sign}${ch24.toFixed(1)}%${fundingFlag}`,
       `   entry $${fmtPx(plan.entry.ideal)} · now $${fmtPx(current)} (${deltaSign}${status.deltaPct.toFixed(2)}%) ${status.tag}`,
-      `   stop $${fmtPx(stop)} (${plan.stop.distancePct.toFixed(1)}%)`,
+      `   stop $${fmtPx(stop)} (${plan.stop.distancePct.toFixed(1)}%) · ${tpStr}`,
     ].join("\n");
   }
 
