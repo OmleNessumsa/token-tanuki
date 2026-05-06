@@ -31,6 +31,7 @@ export const config = {
   telegramChatId: process.env.TELEGRAM_CHAT_ID ?? "",
   mexcApiKey: process.env.MEXC_API_KEY ?? "",
   mexcApiSecret: process.env.MEXC_API_SECRET ?? "",
+  coinglassKey: process.env.COINGLASS_API_KEY ?? "",
 } as const;
 
 export const endpoints = {
@@ -42,4 +43,5 @@ export const endpoints = {
   birdeye: "https://public-api.birdeye.so",
   helius: "https://mainnet.helius-rpc.com",
   etherscan: "https://api.etherscan.io/v2/api",
+  coinglass: "https://open-api-v4.coinglass.com",
 } as const;
