@@ -79,3 +79,40 @@ export async function getUsdtEquity(): Promise<number> {
   const usdt = assets.find((a) => a.currency === "USDT");
   return usdt ? usdt.equity : 0;
 }
+
+/**
+ * Stop-loss / take-profit "plan orders" pending on a futures position.
+ * MEXC stores these separately from the position itself.
+ */
+export interface MexcStopOrder {
+  symbol: string;
+  side: number;            // 1=open long, 2=close short, 3=open short, 4=close long
+  triggerPrice: number;
+  triggerType: number;     // 1=more than/equal, 2=less than/equal
+  state: number;           // 1=untriggered, 2=cancelled, 3=triggered, 4=invalid
+  positionId: number;
+  triggerOrderType: number; // 1=plan, 2=stop loss, 3=take profit, etc.
+}
+
+export async function getStopOrders(symbol?: string): Promise<MexcStopOrder[]> {
+  const qs = `states=1${symbol ? `&symbol=${symbol}` : ""}&page_num=1&page_size=50`;
+  const url = `${BASE}/api/v1/private/planorder/list/orders?${qs}`;
+  try {
+    const resp = await fetchJson<MexcSignedResp<{ resultList?: MexcStopOrder[] }>>(url, { headers: signedHeaders(qs) });
+    return resp.success ? resp.data?.resultList ?? [] : [];
+  } catch {
+    return [];
+  }
+}
+
+/** Check whether a position has a stop loss configured. */
+export async function hasStopLoss(symbol: string, positionId: number): Promise<boolean> {
+  const orders = await getStopOrders(symbol);
+  return orders.some((o) =>
+    o.positionId === positionId &&
+    o.state === 1 && // untriggered
+    // For LONG (close long = side 4): SL fires when price goes BELOW (triggerType 2)
+    // For SHORT (close short = side 2): SL fires when price goes ABOVE (triggerType 1)
+    (o.side === 4 || o.side === 2),
+  );
+}
