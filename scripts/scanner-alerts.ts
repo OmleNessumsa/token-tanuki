@@ -1,17 +1,18 @@
 /**
- * Scanner alerts → Telegram.
+ * Scanner alerts → Telegram (single digest message).
  *
- * 1. Run scan-futures-style scan over top-N MEXC perps by 24h volume
- * 2. Filter: only HIGH-confidence aligned LONGs (or SHORTs) with composite ≥ 70
- * 3. Compare against state file at ~/.cryptotrader/scan-state.json — only push NEW signals
- * 4. Push trade card per new signal
+ * Sends ONE compact message with all new signals as a list:
+ *   🆕 5 new LONG signals (composite ≥75):
+ *   🔥 DOGE 81 +2.99%  entry $0.1157
+ *   🔥 AVAX 79 +0.18%  entry $9.4220
+ *   ...
+ *   Reply with symbol for full trade plan
  */
-
 import { readFileSync, writeFileSync, mkdirSync, existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import { fetchJson } from "../src/http.js";
-import { analyzeFutures } from "../src/analyze-futures.js";
+import { analyzeFutures, type FuturesAnalysis } from "../src/analyze-futures.js";
 import { generateTradePlan } from "../src/analysis/trade-plan.js";
 import { sendTelegram } from "../src/clients/telegram.js";
 
@@ -20,11 +21,7 @@ const STATE_FILE = join(STATE_DIR, "scan-state.json");
 const SLEEP_BETWEEN = 800;
 
 interface MexcTicker { symbol: string; amount24: number; }
-
-interface ScanState {
-  /** map of symbol → last alerted side ("LONG" / "SHORT") + timestamp */
-  alerted: Record<string, { side: string; composite: number; ts: number }>;
-}
+interface ScanState { alerted: Record<string, { side: string; composite: number; ts: number }>; }
 
 const SKIP_KEYWORDS = ["XAUT", "SILVER", "GOLD", "PAXG", "USDC", "DAI", "USDT_USD"];
 const SKIP_SYMBOLS = new Set(["BTC_USDT", "ETH_USDT"]);
@@ -44,7 +41,7 @@ function saveState(s: ScanState): void {
 async function main(): Promise<void> {
   const args = process.argv.slice(2);
   const top = args.includes("--top") ? parseInt(args[args.indexOf("--top") + 1]!, 10) : 30;
-  const minComposite = args.includes("--min") ? parseInt(args[args.indexOf("--min") + 1]!, 10) : 70;
+  const minComposite = args.includes("--min") ? parseInt(args[args.indexOf("--min") + 1]!, 10) : 75;
   const force = args.includes("--force");
 
   process.stderr.write(`Fetching tickers...\n`);
@@ -60,7 +57,7 @@ async function main(): Promise<void> {
   process.stderr.write(`Scanning top ${filtered.length} perps (min composite ${minComposite})...\n\n`);
 
   const state = loadState();
-  const newAlerts: Array<{ asset: string; symbol: string; analysis: Awaited<ReturnType<typeof analyzeFutures>> }> = [];
+  const newAlerts: Array<{ asset: string; symbol: string; analysis: FuturesAnalysis }> = [];
 
   for (let i = 0; i < filtered.length; i++) {
     const t = filtered[i]!;
@@ -89,7 +86,6 @@ async function main(): Promise<void> {
     }
     await sleep(SLEEP_BETWEEN);
   }
-
   saveState(state);
 
   if (newAlerts.length === 0) {
@@ -97,40 +93,74 @@ async function main(): Promise<void> {
     return;
   }
 
-  process.stderr.write(`\n${newAlerts.length} new alert(s), sending to Telegram...\n`);
+  // Single compact digest message
+  const longs = newAlerts.filter((n) => n.analysis.verdict.side === "LONG").sort((a, b) => b.analysis.confluence.score - a.analysis.confluence.score);
+  const shorts = newAlerts.filter((n) => n.analysis.verdict.side === "SHORT").sort((a, b) => b.analysis.confluence.score - a.analysis.confluence.score);
 
-  for (const { asset, analysis } of newAlerts) {
-    const plan = generateTradePlan({
-      analysis,
-      accountUsd: 10000,
-      leverage: 20,
-      riskPctPerTrade: 1,
-    });
-    const lines: string[] = [];
-    const sideEmoji = analysis.verdict.side === "LONG" ? "🟢" : "🔴";
-    lines.push(`${sideEmoji} <b>NEW ${analysis.verdict.side}</b> — ${asset}`);
-    lines.push(`Composite <b>${analysis.confluence.score}/100</b> · ${analysis.verdict.confidence} confidence · ALIGNED ✓`);
-    lines.push("");
-    if (analysis.ticker) {
-      const ch24 = analysis.ticker.riseFallRate * 100;
-      lines.push(`Price: $${analysis.ticker.lastPrice.toFixed(4)} (24h ${ch24 >= 0 ? "+" : ""}${ch24.toFixed(2)}%)`);
+  const lines: string[] = [];
+  lines.push(`🆕 <b>${newAlerts.length} new signal${newAlerts.length === 1 ? "" : "s"}</b> (composite ≥${minComposite})`);
+  lines.push("");
+
+  /** Compare current price to recommended entry, return LATE/IN ZONE/EARLY tag. */
+  function entryStatus(side: "LONG" | "SHORT", current: number, entryIdeal: number): { tag: string; deltaPct: number } {
+    const deltaPct = ((current - entryIdeal) / entryIdeal) * 100;
+    if (side === "LONG") {
+      if (deltaPct > 1.5) return { tag: "🚨 LATE", deltaPct };
+      if (deltaPct > 0.5) return { tag: "⚠ chase", deltaPct };
+      if (deltaPct >= -0.5) return { tag: "✅ IN ZONE", deltaPct };
+      return { tag: "💎 EARLY", deltaPct };
     }
-    if (analysis.funding) lines.push(`Funding: ${analysis.funding.regime} (${(analysis.funding.ratePerCycle * 100).toFixed(4)}%/cycle)`);
-    lines.push("");
-    lines.push(`MTF: ${analysis.timeframes.map((t) => `${t.timeframe}=${t.direction[0]}${t.chart.score}`).join(" ")}`);
-    lines.push("");
-    if (plan) {
-      lines.push(`<b>Trade plan @ 20x / $10k account:</b>`);
-      lines.push(`Entry: $${plan.entry.ideal.toFixed(4)} (max $${plan.entry.max.toFixed(4)})`);
-      lines.push(`Stop: $${plan.stop.price.toFixed(4)} (${plan.stop.distancePct.toFixed(2)}% ${plan.side === "LONG" ? "below" : "above"})`);
-      const t = plan.targets[0];
-      if (t) lines.push(`Target: $${t.price.toFixed(4)} (R:R ${t.rr.toFixed(2)})`);
-      lines.push(`Size: ${plan.positionSizing.units.toFixed(4)} ${asset} = $${plan.positionSizing.notionalUsd.toFixed(0)} notional · margin $${plan.positionSizing.marginUsd.toFixed(0)}`);
-    }
-    const result = await sendTelegram(lines.join("\n"), { parse_mode: "HTML" });
-    process.stderr.write(`  ${asset}: ${result.ok ? "✓" : "✗ " + result.error}\n`);
-    await sleep(500);
+    // SHORT — mirror
+    if (deltaPct < -1.5) return { tag: "🚨 LATE", deltaPct };
+    if (deltaPct < -0.5) return { tag: "⚠ chase", deltaPct };
+    if (deltaPct <= 0.5) return { tag: "✅ IN ZONE", deltaPct };
+    return { tag: "💎 EARLY", deltaPct };
   }
+
+  function fmtPx(n: number): string {
+    if (n >= 1000) return n.toFixed(2);
+    if (n >= 1) return n.toFixed(4);
+    return n.toFixed(6);
+  }
+
+  function renderRow({ asset, analysis }: { asset: string; analysis: FuturesAnalysis }): string {
+    const ch24 = analysis.ticker ? analysis.ticker.riseFallRate * 100 : 0;
+    const sign = ch24 >= 0 ? "+" : "";
+    const current = analysis.ticker?.lastPrice ?? 0;
+    const fundingFlag = analysis.funding?.regime === "euphoria" ? " 🚨EUPHORIC" : analysis.funding?.regime === "crowded_long" ? " ⚠crowded" : "";
+
+    // Generate a trade plan to get the recommended entry
+    const plan = generateTradePlan({ analysis, accountUsd: 10000, leverage: 20, riskPctPerTrade: 1 });
+    if (!plan) {
+      return `<b>${asset}</b> · ${analysis.confluence.score} · $${fmtPx(current)} (${sign}${ch24.toFixed(1)}%)${fundingFlag}`;
+    }
+
+    const status = entryStatus(plan.side, current, plan.entry.ideal);
+    const deltaSign = status.deltaPct >= 0 ? "+" : "";
+    const stop = plan.stop.price;
+    return [
+      `<b>${asset}</b> · ${analysis.confluence.score} · 24h ${sign}${ch24.toFixed(1)}%${fundingFlag}`,
+      `   entry $${fmtPx(plan.entry.ideal)} · now $${fmtPx(current)} (${deltaSign}${status.deltaPct.toFixed(2)}%) ${status.tag}`,
+      `   stop $${fmtPx(stop)} (${plan.stop.distancePct.toFixed(1)}%)`,
+    ].join("\n");
+  }
+
+  if (longs.length > 0) {
+    lines.push("<b>🟢 LONG</b>");
+    for (const item of longs) lines.push(renderRow(item));
+  }
+  if (shorts.length > 0) {
+    if (longs.length > 0) lines.push("");
+    lines.push("<b>🔴 SHORT</b>");
+    for (const item of shorts) lines.push(renderRow(item));
+  }
+  lines.push("");
+  lines.push(`<i>✅ IN ZONE = entry now · ⚠ chase = small premium · 🚨 LATE = wait pullback</i>`);
+
+  process.stderr.write(`\n${newAlerts.length} new — sending digest...\n`);
+  const result = await sendTelegram(lines.join("\n"), { parse_mode: "HTML" });
+  if (result.ok) process.stderr.write(`✓ sent\n`);
+  else process.stderr.write(`✗ ${result.error}\n`);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });

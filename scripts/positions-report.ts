@@ -1,10 +1,11 @@
 /**
- * Live position report → Telegram.
+ * Live position report → Telegram (compact, single-message format).
  *
- * 1. Fetch open positions from MEXC via signed private API
- * 2. For each, run multi-timeframe analyzeFutures()
- * 3. Generate a per-position recommendation (HOLD / TIGHTEN STOP / CLOSE PARTIAL / CLOSE ALL)
- * 4. Push formatted message to Telegram
+ * Output is one tight message:
+ *   📊 Positions — +$X (+Y%)
+ *   🟢 SOL +$874 (+66%) → TRAIL
+ *   ...
+ *   <urgent action box if any>
  */
 import { getOpenPositions } from "../src/clients/mexc-private.js";
 import { getFuturesTicker } from "../src/clients/mexc-futures.js";
@@ -20,137 +21,119 @@ async function getContractSizes(): Promise<Map<string, number>> {
   return out;
 }
 
-interface Recommendation {
-  action: "HOLD" | "TIGHTEN_STOP" | "CLOSE_PARTIAL" | "CLOSE_ALL";
-  text: string;
-  emoji: string;
-}
+type Action = "HOLD" | "TRAIL" | "CUT_HALF" | "CUT" | "WATCH";
+
+const ACTION_GLYPH: Record<Action, string> = {
+  HOLD:     "→ HOLD",
+  TRAIL:    "→ TRAIL",
+  CUT_HALF: "→ CUT 50%",
+  CUT:      "🚨 CUT NOW",
+  WATCH:    "⚠ WATCH",
+};
 
 async function main(): Promise<void> {
   process.stderr.write("Fetching positions...\n");
   const positions = await getOpenPositions();
   if (positions.length === 0) {
-    await sendTelegram("📊 *Position Report*\n\nNo open positions.");
+    await sendTelegram("📊 No open positions.");
     return;
   }
-
   const contractSizes = await getContractSizes();
-  process.stderr.write(`Got ${positions.length} positions, analyzing each...\n`);
 
-  // Compute per-position PnL by joining with current ticker
-  const enriched: Array<{
-    p: typeof positions[number];
-    side: "LONG" | "SHORT";
-    asset: string;
-    currentPrice: number;
-    qtyBase: number;
-    pnlUsd: number;
-    pnlPctMargin: number;
-    spotMovePct: number;
-  }> = [];
+  interface Row {
+    asset: string; side: "LONG" | "SHORT"; pnlUsd: number; pnlPctMargin: number;
+    spotMovePct: number; marginRatio: number; action: Action; note: string;
+    composite: number;
+  }
+
+  const rows: Row[] = [];
+  let totalMargin = 0, totalPnl = 0;
 
   for (const p of positions) {
     const ticker = await getFuturesTicker(p.symbol);
     if (!ticker) continue;
     const side = p.positionType === 1 ? "LONG" : "SHORT";
     const cs = contractSizes.get(p.symbol) ?? 1;
-    const qtyBase = p.holdVol * cs;
     const dir = side === "LONG" ? 1 : -1;
+    const qtyBase = p.holdVol * cs;
     const pnlUsd = (ticker.lastPrice - p.holdAvgPrice) * qtyBase * dir;
     const pnlPctMargin = (pnlUsd / p.im) * 100;
     const spotMovePct = ((ticker.lastPrice - p.holdAvgPrice) / p.holdAvgPrice) * 100 * dir;
     const asset = p.symbol.replace(/_USDT$/, "").replace(/^TONCOIN$/, "TON");
-    enriched.push({ p, side, asset, currentPrice: ticker.lastPrice, qtyBase, pnlUsd, pnlPctMargin, spotMovePct });
-  }
 
-  // Analyze each unique asset (multi-timeframe)
-  const analyses = new Map<string, Awaited<ReturnType<typeof analyzeFutures>>>();
-  for (const e of enriched) {
-    if (!analyses.has(e.asset)) {
-      process.stderr.write(`  analyzing ${e.asset}... `);
-      try {
-        const a = await analyzeFutures(e.asset);
-        analyses.set(e.asset, a);
-        process.stderr.write(`${a.verdict.side} ${a.confluence.score}\n`);
-      } catch (err) {
-        process.stderr.write(`ERR ${err instanceof Error ? err.message : err}\n`);
+    process.stderr.write(`  ${asset}... `);
+    let composite = 0;
+    let action: Action = "HOLD";
+    let note = "";
+    try {
+      const a = await analyzeFutures(asset);
+      composite = a.confluence.score;
+      const setupBullish = a.verdict.side === "LONG" && a.confluence.aligned;
+      const setupBearish = a.verdict.side === "SHORT" && a.confluence.aligned;
+      const setupFlat = a.verdict.side === "FLAT";
+      const fundingHot = a.funding?.regime === "euphoria" || a.funding?.regime === "crowded_long";
+
+      if (pnlPctMargin <= -40 && (setupFlat || (side === "LONG" && setupBearish))) {
+        action = "CUT"; note = `setup ${setupFlat ? "flat" : "flipped"}, big loss`;
+      } else if (pnlPctMargin <= -40) {
+        action = "CUT"; note = "loss too deep, recovery unlikely";
+      } else if (pnlPctMargin >= 50 && fundingHot) {
+        action = "CUT_HALF"; note = `take half: ${a.funding!.regime} funding = squeeze risk`;
+      } else if (pnlPctMargin >= 50 && setupFlat) {
+        action = "CUT_HALF"; note = "lock half: setup turned mixed";
+      } else if (pnlPctMargin >= 20) {
+        action = "TRAIL"; note = "in profit, tighten stop higher";
+      } else if (side === "LONG" && setupBearish) {
+        action = "CUT"; note = `setup flipped to SHORT (composite ${composite})`;
+      } else if (setupFlat) {
+        action = "WATCH"; note = "setup mixed, no clear edge";
+      } else if (setupBullish && side === "LONG") {
+        action = "HOLD"; note = `setup intact (composite ${composite})`;
       }
+    } catch {
+      note = "analysis failed";
     }
+
+    rows.push({ asset, side, pnlUsd, pnlPctMargin, spotMovePct, marginRatio: p.marginRatio * 100, action, note, composite });
+    totalMargin += p.im;
+    totalPnl += pnlUsd;
+    process.stderr.write(`${ACTION_GLYPH[action]}\n`);
   }
 
-  // Build recommendation per position
-  function recommend(e: typeof enriched[number]): Recommendation {
-    const a = analyses.get(e.asset);
-    const isWinner = e.pnlPctMargin >= 20;
-    const isBigWinner = e.pnlPctMargin >= 50;
-    const isLoser = e.pnlPctMargin <= -25;
-    const isBigLoser = e.pnlPctMargin <= -40;
-    const marginRatio = e.p.marginRatio * 100; // % of margin used in liq calc
+  // Sort: urgent actions first (CUT > CUT_HALF > WATCH > TRAIL > HOLD), then by PnL
+  const ACTION_RANK: Record<Action, number> = { CUT: 0, CUT_HALF: 1, WATCH: 2, TRAIL: 3, HOLD: 4 };
+  rows.sort((a, b) => ACTION_RANK[a.action] - ACTION_RANK[b.action] || b.pnlUsd - a.pnlUsd);
 
-    if (isBigLoser && a && (a.verdict.side === "FLAT" || (e.side === "LONG" && a.confluence.htfDirection === "bearish"))) {
-      return { action: "CLOSE_ALL", emoji: "🔴", text: `Cut: ${e.pnlPctMargin.toFixed(0)}% loss + setup invalid (${a.verdict.side}/${a.confluence.htfDirection})` };
-    }
-    if (isBigLoser) {
-      return { action: "CLOSE_ALL", emoji: "🔴", text: `Cut: ${e.pnlPctMargin.toFixed(0)}% loss, margin ratio ${marginRatio.toFixed(1)}%` };
-    }
-    if (isBigWinner && a?.funding && a.funding.regime === "euphoria") {
-      return { action: "CLOSE_PARTIAL", emoji: "🟡", text: `Close 50%: +${e.pnlPctMargin.toFixed(0)}% with euphoric funding (${a.funding.regime}) = squeeze risk` };
-    }
-    if (isBigWinner && a && a.verdict.side === "FLAT") {
-      return { action: "CLOSE_PARTIAL", emoji: "🟡", text: `Close 50%: +${e.pnlPctMargin.toFixed(0)}% but setup turned mixed — lock half` };
-    }
-    if (isWinner) {
-      return { action: "TIGHTEN_STOP", emoji: "🟢", text: `Trail stop higher — locked +${e.pnlPctMargin.toFixed(0)}%, let runner run` };
-    }
-    if (a && a.verdict.side === "LONG" && a.confluence.aligned && e.side === "LONG") {
-      return { action: "HOLD", emoji: "🟢", text: `Hold: setup still ${a.verdict.side} ${a.verdict.confidence} (composite ${a.confluence.score})` };
-    }
-    if (a && a.verdict.side === "SHORT" && a.confluence.aligned && e.side === "LONG") {
-      return { action: "CLOSE_ALL", emoji: "🔴", text: `Close: setup flipped to SHORT (composite ${a.confluence.score})` };
-    }
-    if (a && a.verdict.side === "FLAT") {
-      return { action: "TIGHTEN_STOP", emoji: "🟡", text: `Tighten: setup is FLAT (mixed signals), reduce risk` };
-    }
-    return { action: "HOLD", emoji: "🟢", text: `Hold: setup intact` };
-  }
-
-  // Compose message
+  // Compose compact message
+  const totalEmoji = totalPnl >= 0 ? "🟢" : "🔴";
+  const totalSign = totalPnl >= 0 ? "+" : "";
   const lines: string[] = [];
-  lines.push(`📊 *Position Report* — ${new Date().toISOString().slice(11, 16)} UTC`);
+  lines.push(`📊 <b>Positions</b> ${totalEmoji} ${totalSign}$${totalPnl.toFixed(0)} (${totalSign}${(totalPnl / totalMargin * 100).toFixed(1)}% margin)`);
   lines.push("");
 
-  enriched.sort((a, b) => b.pnlUsd - a.pnlUsd);
-  let totalMargin = 0, totalPnl = 0;
-  for (const e of enriched) {
-    totalMargin += e.p.im;
-    totalPnl += e.pnlUsd;
-    const r = recommend(e);
-    const a = analyses.get(e.asset);
-    const pnlEmoji = e.pnlUsd >= 0 ? "🟢" : "🔴";
-    const sign = e.pnlUsd >= 0 ? "+" : "";
-    lines.push(`${pnlEmoji} *${e.asset}* ${e.side} 20x — ${sign}$${e.pnlUsd.toFixed(0)} (${sign}${e.pnlPctMargin.toFixed(1)}%)`);
-    lines.push(`  Entry $${e.p.holdAvgPrice.toFixed(4)} → now $${e.currentPrice.toFixed(4)} (spot ${sign}${e.spotMovePct.toFixed(2)}%)`);
-    lines.push(`  Liq $${e.p.liquidatePrice.toFixed(4)} · Margin $${e.p.im.toFixed(0)}`);
-    if (a) {
-      lines.push(`  MTF: ${a.confluence.htfDirection}/HTF · ${a.confluence.ltfDirection}/LTF · composite ${a.confluence.score}`);
-      if (a.funding) lines.push(`  Funding: ${a.funding.regime} (${(a.funding.ratePerCycle * 100).toFixed(4)}%/cycle)`);
-    }
-    lines.push(`  ${r.emoji} *${r.action}*: ${r.text}`);
-    lines.push("");
+  for (const r of rows) {
+    const e = r.pnlUsd >= 0 ? "🟢" : "🔴";
+    const s = r.pnlUsd >= 0 ? "+" : "";
+    lines.push(`${e} <b>${r.asset}</b> ${s}$${r.pnlUsd.toFixed(0)} (${s}${r.pnlPctMargin.toFixed(0)}%) ${ACTION_GLYPH[r.action]}`);
   }
 
-  const totalSign = totalPnl >= 0 ? "+" : "";
-  const totalEmoji = totalPnl >= 0 ? "🟢" : "🔴";
-  lines.push("━━━━━━━━━━━━━━━━━━━━━━━━");
-  lines.push(`${totalEmoji} *TOTAL*: ${totalSign}$${totalPnl.toFixed(0)} on $${totalMargin.toFixed(0)} margin (${totalSign}${(totalPnl / totalMargin * 100).toFixed(1)}%)`);
+  // Urgent action callouts at bottom (only if any)
+  const urgent = rows.filter((r) => r.action === "CUT" || r.action === "CUT_HALF");
+  if (urgent.length > 0) {
+    lines.push("");
+    lines.push("⚡ <b>Action needed:</b>");
+    for (const u of urgent) {
+      lines.push(`  • ${u.asset} — ${u.note}`);
+    }
+  }
 
-  const message = lines.join("\n");
+  const msg = lines.join("\n");
   process.stderr.write("\nSending to Telegram...\n");
-  const result = await sendTelegram(message);
-  if (result.ok) process.stderr.write(`✓ sent (message_id ${result.messageId})\n`);
-  else process.stderr.write(`✗ failed: ${result.error}\n`);
+  const result = await sendTelegram(msg, { parse_mode: "HTML" });
+  if (result.ok) process.stderr.write(`✓ sent\n`);
+  else process.stderr.write(`✗ ${result.error}\n`);
 
-  console.log(message);
+  console.log(msg);
 }
 
 main().catch((e) => { console.error(e); process.exit(1); });
