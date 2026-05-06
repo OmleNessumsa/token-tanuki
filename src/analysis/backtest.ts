@@ -11,7 +11,7 @@
  */
 
 import type { Candle } from "./indicators.js";
-import { atr } from "./indicators.js";
+import { atr, sma } from "./indicators.js";
 import { scoreChart } from "./chart.js";
 import { blockShuffle, mulberry32 } from "./validation.js";
 
@@ -54,6 +54,10 @@ export interface BacktestConfig {
   cooldownBars: number;
   /** If true, only fire when scoreChart's Donchian breakout signal is present. */
   requireBreakout?: boolean;
+  /** If true, only fire when close > SMA(stage2SmaPeriod) (Weinstein/Minervini Stage 2 trend). */
+  requireStage2?: boolean;
+  /** SMA period for Stage 2 filter. 150 daily bars ≈ 30 weeks. */
+  stage2SmaPeriod?: number;
 }
 
 const DEFAULT_CONFIG: BacktestConfig = {
@@ -63,6 +67,8 @@ const DEFAULT_CONFIG: BacktestConfig = {
   warmupBars: 200,
   cooldownBars: 5,
   requireBreakout: false,
+  requireStage2: false,
+  stage2SmaPeriod: 150,
 };
 
 /**
@@ -87,6 +93,9 @@ export function runStrategyOnSeries(
   if (candles.length <= config.warmupBars + config.horizonBars) return trades;
 
   const atrSeries = atr(candles, 14);
+  const stage2Period = config.stage2SmaPeriod ?? 150;
+  const closes = candles.map((c) => c.c);
+  const smaSeries = config.requireStage2 ? sma(closes, stage2Period) : null;
   let lastEntryIdx = -Infinity;
 
   for (let i = config.warmupBars; i < candles.length - config.horizonBars; i++) {
@@ -97,6 +106,11 @@ export function runStrategyOnSeries(
     if (score.score < config.thresholdComposite) continue;
     if (score.trend === "down") continue;
     if (config.requireBreakout && !score.hasBreakout) continue;
+    if (smaSeries) {
+      const smaIdx = i - (stage2Period - 1);
+      const smaValue = smaIdx >= 0 ? smaSeries[smaIdx] : undefined;
+      if (smaValue === undefined || candles[i]!.c <= smaValue) continue;
+    }
 
     const entryPrice = candles[i]!.c;
     const atrIdx = i - 1; // ATR series starts at index 14, so atrSeries[i - 14] for bar i

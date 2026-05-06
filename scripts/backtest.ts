@@ -19,9 +19,9 @@ import { sendTelegram } from "../src/clients/telegram.js";
 
 interface MexcTicker { symbol: string; amount24: number; }
 
-function parseArgs(argv: readonly string[]): { threshold: number; horizon: number; perms: number; top: number; cooldown: number; sendTg: boolean; requireBreakout: boolean } {
+function parseArgs(argv: readonly string[]): { threshold: number; horizon: number; perms: number; top: number; cooldown: number; sendTg: boolean; requireBreakout: boolean; requireStage2: boolean } {
   const args: Record<string, string | true> = {};
-  const flagOnlyKeys = new Set(["send-telegram", "require-breakout"]);
+  const flagOnlyKeys = new Set(["send-telegram", "require-breakout", "require-stage2"]);
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i]!;
     if (a.startsWith("--")) {
@@ -39,6 +39,7 @@ function parseArgs(argv: readonly string[]): { threshold: number; horizon: numbe
     cooldown: typeof args.cooldown === "string" ? parseInt(args.cooldown) : 5,
     sendTg: args["send-telegram"] === true,
     requireBreakout: args["require-breakout"] === true,
+    requireStage2: args["require-stage2"] === true,
   };
 }
 
@@ -79,9 +80,14 @@ async function main(): Promise<void> {
     warmupBars: 200,
     cooldownBars: args.cooldown,
     requireBreakout: args.requireBreakout,
+    requireStage2: args.requireStage2,
   };
-  const variantLabel = args.requireBreakout ? "BREAKOUT-ONLY" : "BASELINE";
-  process.stderr.write(`Variant: ${variantLabel}${args.requireBreakout ? " (composite ≥X AND Donchian breakout)" : " (composite ≥X only)"}\n`);
+  const tags: string[] = [];
+  if (args.requireBreakout) tags.push("BREAKOUT");
+  if (args.requireStage2) tags.push("STAGE2");
+  const variantLabel = tags.length === 0 ? "BASELINE" : tags.join("+");
+  const filterDesc = tags.length === 0 ? "composite ≥X only" : `composite ≥X AND ${tags.map((t) => t === "BREAKOUT" ? "Donchian breakout" : "price > 30W SMA").join(" AND ")}`;
+  process.stderr.write(`Variant: ${variantLabel} (${filterDesc})\n`);
 
   process.stderr.write("[3/3] running strategy on real data + " + args.perms + " permutations...\n");
   const startTs = Date.now();
@@ -138,7 +144,7 @@ async function main(): Promise<void> {
     const verdict = result.significant ? "✅ SIGNIFICANT EDGE" : "❌ NO STAT EDGE";
     const lines = [
       `🔬 <b>Aronson Backtest [${variantLabel}]</b>`,
-      `Threshold: composite ≥${args.threshold}${args.requireBreakout ? " + breakout required" : ""} · ${args.horizon}d hold · 2×ATR stop`,
+      `Threshold: composite ≥${args.threshold}${args.requireBreakout ? " + breakout" : ""}${args.requireStage2 ? " + stage2" : ""} · ${args.horizon}d hold · 2×ATR stop`,
       "",
       `<b>Real performance:</b>`,
       `  Trades: ${r.trades}`,
