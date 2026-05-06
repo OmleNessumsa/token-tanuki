@@ -77,6 +77,11 @@ export interface FuturesAnalysis {
  * Read a single chart's directional bias.
  * Same logic as the established-asset path in analysis/verdict.ts but exposed standalone here.
  */
+/** Single-char glyph for compact MTF lines. ▲ bull · ▼ bear · = neutral. */
+function dirGlyph(d: "bullish" | "bearish" | "neutral"): string {
+  return d === "bullish" ? "▲" : d === "bearish" ? "▼" : "=";
+}
+
 function chartDirection(chart: ChartScore): "bullish" | "bearish" | "neutral" {
   const rsi = chart.rsi ?? 50;
   if (chart.breakout?.state === "broken_out" && chart.breakout.volumeConfirmed) return "bullish";
@@ -178,7 +183,7 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
 
   reasons.push(`Perp: ${perpSymbol} @ $${ticker?.lastPrice.toFixed(4)} (24h ${(ticker?.riseFallRate ?? 0) >= 0 ? "+" : ""}${((ticker?.riseFallRate ?? 0) * 100).toFixed(2)}%)`);
   reasons.push(`HTF (4h/1d): ${htfDirection} | LTF (15m/1h): ${ltfDirection} | aligned: ${aligned ? "YES" : "no"}`);
-  reasons.push(`Per-TF: ${timeframes.map((t) => `${t.timeframe}=${t.direction[0]}${Math.round(t.chart.score)}`).join(" ")}`);
+  reasons.push(`Per-TF: ${timeframes.map((t) => `${t.timeframe}=${dirGlyph(t.direction)}${Math.round(t.chart.score)}`).join(" ")}`);
   if (funding) reasons.push(`Funding: ${funding.description}`);
   if (intermarket.regime !== "neutral" && intermarket.regime !== "unknown") reasons.push(`Intermarket: ${intermarket.description}`);
 

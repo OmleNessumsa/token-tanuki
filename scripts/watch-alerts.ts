@@ -109,7 +109,7 @@ async function main(): Promise<void> {
           `<b>Why:</b> ${result.reason}`,
           "",
           `Price: $${a.ticker?.lastPrice.toFixed(a.ticker && a.ticker.lastPrice >= 1 ? 4 : 6)}`,
-          `Current MTF: ${a.timeframes.map((t) => `${t.timeframe}=${t.direction[0]}${t.chart.score}`).join(" ")}`,
+          `Current MTF: ${a.timeframes.map((t) => `${t.timeframe}${t.direction === "bullish" ? "▲" : t.direction === "bearish" ? "▼" : "="}${t.chart.score}`).join(" ")}`,
           tf ? `${item.timeframe} chart ${tf.chart.score}/100 · trend ${tf.chart.trend} · RSI ${tf.chart.rsi?.toFixed(0)}` : "",
           item.note ? `\n<i>${item.note}</i>` : "",
         ].filter(Boolean);

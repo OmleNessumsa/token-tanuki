@@ -117,7 +117,8 @@ async function buildTradeCard(asset: string): Promise<{ text: string; keyboard: 
     lines.push(`Price $${fmtPx(a.ticker.lastPrice)} · 24h ${sign}${ch24.toFixed(2)}%`);
   }
   if (a.funding) lines.push(`Funding: ${a.funding.regime} (${(a.funding.ratePerCycle * 100).toFixed(4)}%/cycle)`);
-  lines.push(`MTF: ${a.timeframes.map((t) => `${t.timeframe}=${t.direction[0]}${t.chart.score}`).join(" ")}`);
+  const dirGlyph = (d: string) => d === "bullish" ? "▲" : d === "bearish" ? "▼" : "=";
+  lines.push(`MTF: ${a.timeframes.map((t) => `${t.timeframe}${dirGlyph(t.direction)}${t.chart.score}`).join(" ")}`);
 
   if (plan && a.ticker) {
     const current = a.ticker.lastPrice;
