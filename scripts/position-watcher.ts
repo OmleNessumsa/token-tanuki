@@ -31,9 +31,23 @@ interface PositionState {
   fundingRegime: string;
   hasSL: boolean;
   lastChecked: number;
+  /** Timestamp of last alert per channel — drives cooldowns to avoid spam */
+  lastAlertedBuffer?: number;
+  lastAlertedFunding?: number;
+  lastAlertedNoSL?: number;
 }
 
 interface State { positions: Record<string, PositionState>; }
+
+/** Cooldown per severity — time before the SAME category can re-alert. */
+const COOLDOWN_MS: Record<BufferCategory, number> = {
+  safe: Infinity,
+  warning: 6 * 3600_000,      // 6 hours — informational
+  urgent: 30 * 60_000,        // 30 min — actionable soon
+  emergency: 15 * 60_000,     // 15 min — act now
+};
+const FUNDING_COOLDOWN_MS = 12 * 3600_000;  // 12 hours
+const NO_SL_COOLDOWN_MS = 24 * 3600_000;    // 24 hours
 
 function load(): State {
   if (!existsSync(FILE)) return { positions: {} };
@@ -45,10 +59,20 @@ function save(s: State): void {
   writeFileSync(FILE, JSON.stringify(s, null, 2));
 }
 
-function categorizeBuffer(pct: number): BufferCategory {
-  if (pct < 2) return "emergency";
-  if (pct < 3) return "urgent";
-  if (pct < 5) return "warning";
+/**
+ * Categorize liq buffer with HYSTERESIS — to escape a category, you need to
+ * cross the boundary by 1pp. Avoids ping-ponging when buffer oscillates around
+ * a threshold (e.g. TAO going 4.78 → 5.00 → 4.92 firing 2x).
+ */
+function categorizeBuffer(pct: number, prev: BufferCategory): BufferCategory {
+  // Worsening direction: strict thresholds
+  // Improving direction: needs +1pp clear of the threshold
+  const inEmergency = pct < 2 || (prev === "emergency" && pct < 3);
+  if (inEmergency) return "emergency";
+  const inUrgent = pct < 3 || (prev === "urgent" && pct < 4);
+  if (inUrgent) return "urgent";
+  const inWarning = pct < 5 || (prev === "warning" && pct < 6);
+  if (inWarning) return "warning";
   return "safe";
 }
 
@@ -143,7 +167,8 @@ async function main(): Promise<void> {
     const qty = p.holdVol * cs;
     const pnl = (ticker.lastPrice - p.holdAvgPrice) * qty * dir;
     const liqBufferPct = ((ticker.lastPrice - p.liquidatePrice) / ticker.lastPrice * 100 * dir);
-    const bufferCat = categorizeBuffer(liqBufferPct);
+    const prev = state.positions[p.symbol];
+    const bufferCat = categorizeBuffer(liqBufferPct, prev?.bufferCategory ?? "safe");
 
     const stopOrders = await getStopOrders(p.symbol);
     const hasSL = stopOrders.some((o) => o.positionId === p.positionId && o.state === 1 && (o.side === 4 || o.side === 2));
@@ -153,16 +178,23 @@ async function main(): Promise<void> {
     const fundingRegime = fundingAnalysis?.regime ?? "unknown";
 
     const asset = p.symbol.replace(/_USDT$/, "").replace(/^TONCOIN$/, "TON");
-    const prev = state.positions[p.symbol];
+    const now = Date.now();
 
     // Determine which alerts to fire
     const alertLines: string[] = [];
     let severity: BufferCategory = "safe";
+    let firedBuffer = false;
+    let firedFunding = false;
+    let firedNoSL = false;
 
-    // 1) Buffer alerts — fire when state worsens
+    // 1) Buffer alerts — fire on (a) worsening transition OR (b) cooldown elapsed for current severity
     const prevCat = prev?.bufferCategory ?? "safe";
-    if (sortRank(bufferCat) < sortRank(prevCat)) {
-      // worsened
+    const worsened = sortRank(bufferCat) < sortRank(prevCat);
+    const cooldownMs = COOLDOWN_MS[bufferCat];
+    const elapsed = !prev?.lastAlertedBuffer || (now - prev.lastAlertedBuffer) >= cooldownMs;
+    const shouldFireBuffer = bufferCat !== "safe" && (worsened || elapsed);
+
+    if (shouldFireBuffer) {
       const emoji = bufferCat === "emergency" ? "🔴" : bufferCat === "urgent" ? "🚨" : "⚠️";
       const action = bufferCat === "emergency"
         ? "ACT NOW: cut or add margin immediately"
@@ -174,21 +206,27 @@ async function main(): Promise<void> {
       alertLines.push(`Buffer: ${liqBufferPct.toFixed(2)}% · PnL $${pnl.toFixed(0)} · Margin $${p.im.toFixed(0)}`);
       alertLines.push(`👉 ${action}`);
       severity = bufferCat;
+      firedBuffer = true;
     }
 
-    // 2) Funding regime worsened
+    // 2) Funding regime worsened — alert max once per 12h
     const prevFundingSev = prev ? (FUNDING_SEVERITY[prev.fundingRegime] ?? 1) : 1;
     const newFundingSev = FUNDING_SEVERITY[fundingRegime] ?? 1;
-    if (newFundingSev > prevFundingSev && newFundingSev >= 3) {
+    const fundingWorsened = newFundingSev > prevFundingSev && newFundingSev >= 3;
+    const fundingCooldownElapsed = !prev?.lastAlertedFunding || (now - prev.lastAlertedFunding) >= FUNDING_COOLDOWN_MS;
+    if (fundingWorsened && fundingCooldownElapsed) {
       const emoji = fundingRegime === "euphoria" ? "🚨" : "⚠️";
       alertLines.push(`${emoji} <b>Funding ${fundingRegime}</b> on ${asset} — was ${prev?.fundingRegime ?? "fresh"}`);
       if (fundingAnalysis) alertLines.push(fundingAnalysis.description);
       alertLines.push(`👉 Consider partial close — squeeze risk rising`);
       if (sortRank(severity) > sortRank("warning")) severity = "warning";
+      firedFunding = true;
     }
 
-    // 3) Missing SL — fire once when first detected (don't re-spam if user keeps it off)
-    if (!hasSL && (prev === undefined || prev.hasSL === true)) {
+    // 3) Missing SL — first detection OR every 24h reminder
+    const noSlNew = !hasSL && (prev === undefined || prev.hasSL === true);
+    const noSlReminder = !hasSL && prev?.hasSL === false && (!prev.lastAlertedNoSL || (now - prev.lastAlertedNoSL) >= NO_SL_COOLDOWN_MS);
+    if (noSlNew || noSlReminder) {
       const side = dir === 1 ? "LONG" : "SHORT";
       const suggestion = await suggestStopLoss(p.symbol, side, p.holdAvgPrice, ticker.lastPrice, p.liquidatePrice);
       alertLines.push(`🛑 <b>No stop-loss</b> on ${asset} ($${p.im.toFixed(0)} margin at risk)`);
@@ -200,6 +238,7 @@ async function main(): Promise<void> {
         alertLines.push(`👉 Set TP/SL → Market SL → trigger near current`);
       }
       if (sortRank(severity) > sortRank("warning")) severity = "warning";
+      firedNoSL = true;
     }
 
     if (alertLines.length > 0) {
@@ -212,7 +251,10 @@ async function main(): Promise<void> {
       bufferCategory: bufferCat,
       fundingRegime,
       hasSL,
-      lastChecked: Date.now(),
+      lastChecked: now,
+      lastAlertedBuffer: firedBuffer ? now : prev?.lastAlertedBuffer,
+      lastAlertedFunding: firedFunding ? now : prev?.lastAlertedFunding,
+      lastAlertedNoSL: firedNoSL ? now : prev?.lastAlertedNoSL,
     };
   }
 
