@@ -16,7 +16,8 @@ import { analyzeFutures, type FuturesAnalysis } from "../src/analyze-futures.js"
 import { generateTradePlan } from "../src/analysis/trade-plan.js";
 import { sendTelegram } from "../src/clients/telegram.js";
 
-const STATE_DIR = join(homedir(), ".cryptotrader");
+// Per-tenant state isolation: CRYPTOTRADER_STATE_DIR env var overrides default ~/.cryptotrader/
+const STATE_DIR = process.env.CRYPTOTRADER_STATE_DIR ?? join(homedir(), ".cryptotrader");
 const STATE_FILE = join(STATE_DIR, "scan-state.json");
 const SLEEP_BETWEEN = 800;
 

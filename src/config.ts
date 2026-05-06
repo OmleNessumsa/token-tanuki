@@ -2,7 +2,10 @@ import { readFileSync, existsSync } from "node:fs";
 import { join } from "node:path";
 
 function loadEnv(): void {
-  const path = join(process.cwd(), ".env");
+  // Support multi-tenant deployment: `CRYPTOTRADER_ENV` env var overrides default .env path.
+  // Used to run multiple bot instances on the same box (e.g. .env, .env.roy).
+  const envPath = process.env.CRYPTOTRADER_ENV ?? ".env";
+  const path = envPath.startsWith("/") ? envPath : join(process.cwd(), envPath);
   if (!existsSync(path)) return;
   const body = readFileSync(path, "utf8");
   for (const line of body.split("\n")) {
