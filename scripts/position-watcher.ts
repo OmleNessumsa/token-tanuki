@@ -35,17 +35,21 @@ interface PositionState {
   lastAlertedBuffer?: number;
   lastAlertedFunding?: number;
   lastAlertedNoSL?: number;
+  /** Buffer % at the moment of the last alert — used to suppress notifications when the threat is unchanged. */
+  lastAlertedBufferPct?: number;
 }
 
 interface State { positions: Record<string, PositionState>; }
 
-/** Cooldown per severity — time before the SAME category can re-alert. */
+/** Cooldown per severity — time before the SAME category can re-alert if buffer is also materially worse. */
 const COOLDOWN_MS: Record<BufferCategory, number> = {
   safe: Infinity,
-  warning: 6 * 3600_000,      // 6 hours — informational
-  urgent: 30 * 60_000,        // 30 min — actionable soon
-  emergency: 15 * 60_000,     // 15 min — act now
+  warning: 12 * 3600_000,     // 12 hours — informational
+  urgent: 2 * 3600_000,       // 2 hours — actionable
+  emergency: 1 * 3600_000,    // 1 hour — act now (still re-fires only if buffer drops further)
 };
+/** Within the same category, only re-alert if buffer dropped at least this much since last alert (in pp). */
+const REALERT_BUFFER_DROP_PP = 0.5;
 const FUNDING_COOLDOWN_MS = 12 * 3600_000;  // 12 hours
 const NO_SL_COOLDOWN_MS = 24 * 3600_000;    // 24 hours
 
@@ -187,12 +191,17 @@ async function main(): Promise<void> {
     let firedFunding = false;
     let firedNoSL = false;
 
-    // 1) Buffer alerts — fire on (a) worsening transition OR (b) cooldown elapsed for current severity
+    // 1) Buffer alerts — fire on:
+    //    (a) worsening transition (warning → urgent → emergency)
+    //    (b) buffer dropped by REALERT_BUFFER_DROP_PP since last alert AND cooldown elapsed
+    // Otherwise stay silent (avoids ping-pong spam when buffer hovers in the same band).
     const prevCat = prev?.bufferCategory ?? "safe";
     const worsened = sortRank(bufferCat) < sortRank(prevCat);
     const cooldownMs = COOLDOWN_MS[bufferCat];
     const elapsed = !prev?.lastAlertedBuffer || (now - prev.lastAlertedBuffer) >= cooldownMs;
-    const shouldFireBuffer = bufferCat !== "safe" && (worsened || elapsed);
+    const bufferDroppedEnough = prev?.lastAlertedBufferPct === undefined ||
+      (prev.lastAlertedBufferPct - liqBufferPct) >= REALERT_BUFFER_DROP_PP;
+    const shouldFireBuffer = bufferCat !== "safe" && (worsened || (elapsed && bufferDroppedEnough));
 
     if (shouldFireBuffer) {
       const emoji = bufferCat === "emergency" ? "🔴" : bufferCat === "urgent" ? "🚨" : "⚠️";
@@ -253,6 +262,7 @@ async function main(): Promise<void> {
       hasSL,
       lastChecked: now,
       lastAlertedBuffer: firedBuffer ? now : prev?.lastAlertedBuffer,
+      lastAlertedBufferPct: firedBuffer ? liqBufferPct : prev?.lastAlertedBufferPct,
       lastAlertedFunding: firedFunding ? now : prev?.lastAlertedFunding,
       lastAlertedNoSL: firedNoSL ? now : prev?.lastAlertedNoSL,
     };
