@@ -26,6 +26,8 @@ interface ScanState { alerted: Record<string, { side: string; composite: number;
 
 const SKIP_KEYWORDS = ["XAUT", "SILVER", "GOLD", "PAXG", "USDC", "DAI", "USDT_USD"];
 const SKIP_SYMBOLS = new Set(["BTC_USDT", "ETH_USDT"]);
+/** Re-alert a coin after this many hours even if side/composite haven't materially changed. */
+const REALERT_AFTER_HOURS = 24;
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -69,9 +71,12 @@ async function main(): Promise<void> {
       const high = a.verdict.confidence === "high" && a.confluence.aligned && a.confluence.score >= minComposite;
       const isLong = a.verdict.side === "LONG";
       const isShort = a.verdict.side === "SHORT";
-      const isNew = !state.alerted[t.symbol] ||
-        state.alerted[t.symbol]!.side !== a.verdict.side ||
-        Math.abs(state.alerted[t.symbol]!.composite - a.confluence.score) > 10;
+      const prev = state.alerted[t.symbol];
+      const ageHours = prev ? (Date.now() - prev.ts) / 3_600_000 : Infinity;
+      const isNew = !prev ||
+        prev.side !== a.verdict.side ||
+        Math.abs(prev.composite - a.confluence.score) > 10 ||
+        ageHours >= REALERT_AFTER_HOURS;
 
       if (high && (isLong || isShort) && (force || isNew)) {
         newAlerts.push({ asset, symbol: t.symbol, analysis: a });
