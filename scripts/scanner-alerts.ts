@@ -15,6 +15,7 @@ import { fetchJson } from "../src/http.js";
 import { analyzeFutures, type FuturesAnalysis } from "../src/analyze-futures.js";
 import { generateTradePlan } from "../src/analysis/trade-plan.js";
 import { sendTelegram } from "../src/clients/telegram.js";
+import { appendSignal } from "../src/signal-log.js";
 
 // Per-tenant state isolation: CRYPTOTRADER_STATE_DIR env var overrides default ~/.cryptotrader/
 const STATE_DIR = process.env.CRYPTOTRADER_STATE_DIR ?? join(homedir(), ".cryptotrader");
@@ -39,6 +40,31 @@ function loadState(): ScanState {
 function saveState(s: ScanState): void {
   if (!existsSync(STATE_DIR)) mkdirSync(STATE_DIR, { recursive: true });
   writeFileSync(STATE_FILE, JSON.stringify(s, null, 2));
+}
+
+function logSignal(a: FuturesAnalysis, symbol: string, asset: string, fired: boolean, shadowReason: string | null): void {
+  if (!a.ticker) return;
+  const plan = generateTradePlan({ analysis: a, accountUsd: 10000, leverage: 20, riskPctPerTrade: 1 });
+  appendSignal({
+    ts: Date.now(),
+    symbol,
+    asset,
+    naturalSide: a.naturalSide,
+    side: a.verdict.side,
+    fired,
+    shadowReason,
+    composite: a.confluence.score,
+    stage2: a.stage2,
+    aligned: a.confluence.aligned,
+    htfDirection: a.confluence.htfDirection,
+    ltfDirection: a.confluence.ltfDirection,
+    entryPrice: a.ticker.lastPrice,
+    stopPrice: plan?.stop.price ?? null,
+    tp1Price: plan?.targets[0]?.price ?? null,
+    tp2Price: plan?.targets[1]?.price ?? null,
+    tp3Price: plan?.targets[2]?.price ?? null,
+    outcome: null,
+  });
 }
 
 async function main(): Promise<void> {
@@ -82,10 +108,19 @@ async function main(): Promise<void> {
         newAlerts.push({ asset, symbol: t.symbol, analysis: a });
         state.alerted[t.symbol] = { side: a.verdict.side, composite: a.confluence.score, ts: Date.now() };
         process.stderr.write(`★ ${a.verdict.side} ${a.confluence.score} (NEW)\n`);
+        logSignal(a, t.symbol, asset, true, null);
       } else if (high) {
         process.stderr.write(`${a.verdict.side} ${a.confluence.score} (already alerted)\n`);
       } else {
         process.stderr.write(`${a.verdict.side} ${a.confluence.score}\n`);
+        // Shadow log: signal would have been LONG except for Stage 2 gate.
+        // Captures the counterfactual to compare expectancy fired vs shadowed.
+        const shadowed = a.naturalSide === "LONG" && a.verdict.side === "FLAT" &&
+          a.confluence.aligned && a.confluence.score >= minComposite && a.stage2 === false;
+        if (shadowed) {
+          logSignal(a, t.symbol, asset, false, "stage2-gated");
+          process.stderr.write(`  └─ shadow: stage2-gated LONG ${a.confluence.score} (logged for forward test)\n`);
+        }
       }
     } catch (err) {
       process.stderr.write(`ERR ${err instanceof Error ? err.message : err}\n`);

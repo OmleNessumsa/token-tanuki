@@ -73,6 +73,8 @@ export interface FuturesAnalysis {
     reasons: string[];
     caveats: string[];
   };
+  /** Side BEFORE the Stage 2 gate. Used for shadow logging during forward test. */
+  naturalSide: "LONG" | "SHORT" | "FLAT";
   /** Daily-chart Stage 2 status (close > 150d SMA). Backtest-validated LONG gate. */
   stage2: boolean | null;
 }
@@ -132,6 +134,7 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
       trendTemplate: null,
       confluence: { htfDirection: "neutral", ltfDirection: "neutral", aligned: false, score: 0, summary: "no perp listed" },
       verdict: { side: "FLAT", confidence: "low", reasons: [`${upper} has no MEXC futures listing`], caveats: [] },
+      naturalSide: "FLAT",
       stage2: null,
     };
   }
@@ -250,9 +253,12 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
   }
 
   // Stage 2 hard gate for LONG (Aronson-validated, see docs/BACKTEST_RESULTS.md).
-  // If daily close ≤ SMA(150), demote LONG → FLAT to suppress alert.
+  // If daily close ≤ SMA(150), demote LONG → FLAT to suppress alert. Capture
+  // the pre-gate side as `naturalSide` so the signal logger can shadow-track
+  // suppressed signals during forward test.
   const dailyTf = timeframes.find((t) => t.timeframe === "1d");
   const stage2 = dailyTf?.chart.stage2 ?? null;
+  const naturalSide: "LONG" | "SHORT" | "FLAT" = side;
   if (side === "LONG" && stage2 === false) {
     side = "FLAT";
     confidence = "low";
@@ -271,6 +277,7 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
     timeframes,
     confluence: { htfDirection, ltfDirection, aligned, score: composite, summary: `${aligned ? "ALIGNED" : "MIXED"} | composite ${composite}/100` },
     verdict: { side, confidence, reasons, caveats },
+    naturalSide,
     stage2,
   };
 }
