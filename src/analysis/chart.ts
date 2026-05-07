@@ -20,6 +20,12 @@ export interface ChartScore {
   breakout: BreakoutResult | null;
   setups: SetupSignal[];
   volumeConfirmation: boolean;
+  /**
+   * Weinstein/Minervini Stage 2 confirmation: close > SMA(150) on the
+   * series being scored. `null` if insufficient history. Validated by
+   * Aronson backtest 2026-05-06 as the only filter that flipped EV positive.
+   */
+  stage2: boolean | null;
   notes: string[];
 }
 
@@ -128,6 +134,23 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
     if (change24h > 100) { score -= 10; notes.push(`Up ${change24h.toFixed(0)}% in 24h — late chase risk`); }
   }
 
+  // Stage 2 filter — Weinstein/Minervini. Aronson-backtest validated: only
+  // filter to flip composite ≥75 LONG strategy from −0.021R to +0.024R per
+  // trade. Hard gate for LONG alerts is enforced upstream in analyze-futures.
+  let stage2: boolean | null = null;
+  const stage2Period = 150;
+  const stage2Series = seriesForChart.length >= stage2Period ? seriesForChart : daily.length >= stage2Period ? daily : null;
+  if (stage2Series) {
+    const sma150 = sma(stage2Series.map((c) => c.c), stage2Period);
+    const lastSma = sma150[sma150.length - 1];
+    const lastClose = stage2Series[stage2Series.length - 1]?.c;
+    if (lastSma !== undefined && lastClose !== undefined) {
+      stage2 = lastClose > lastSma;
+      if (stage2) notes.push(`Stage 2 confirmed (close > 150d SMA)`);
+      else notes.push(`Pre-Stage 2 (close ≤ 150d SMA) — LONG gated off`);
+    }
+  }
+
   // Touch unused imports for lint quietness
   void ema; void atr;
 
@@ -142,6 +165,7 @@ export function scoreChart(daily: readonly Candle[], hourly: readonly Candle[]):
     breakout,
     setups,
     volumeConfirmation,
+    stage2,
     notes,
   };
 }

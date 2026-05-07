@@ -132,6 +132,7 @@ function emptyChart(): ChartScore {
     breakout: null,
     setups: [],
     volumeConfirmation: false,
+    stage2: null,
     notes: [],
   };
 }

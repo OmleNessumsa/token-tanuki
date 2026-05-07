@@ -37,7 +37,7 @@ export async function analyzeToken(address: string): Promise<AnalysisResult> {
       pair: null,
       security: { findings: [], fatals: [], buyTax: null, sellTax: null, topHolderPct: null, lpLockedOrBurned: null, honeypot: false, score: 0 },
       phase: { phase: "unknown", ageHours: null, ddFromAth: 0, buyability: "avoid", reason: "no pair found" },
-      chart: { score: 0, trend: "flat", rsi: null, rsiDivergence: null, recentBullishPatterns: [], recentBearishPatterns: [], chartPatterns: [], breakout: null, setups: [], volumeConfirmation: false, notes: ["no chart data"] },
+      chart: { score: 0, trend: "flat", rsi: null, rsiDivergence: null, recentBullishPatterns: [], recentBearishPatterns: [], chartPatterns: [], breakout: null, setups: [], volumeConfirmation: false, stage2: null, notes: ["no chart data"] },
       intermarket,
       verdict: { verdict: "AVOID", composite: 0, reasons: ["No DEX pair found for address"], caveats: [] },
       candles: { m1: [], m5: [], h1: [], d1: [] },

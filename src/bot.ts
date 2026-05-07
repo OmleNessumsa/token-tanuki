@@ -243,6 +243,9 @@ async function buildTradeCard(asset: string): Promise<{ text: string; keyboard: 
   const ltfStatus = a.confluence.ltfDirection;
   const alignSym = a.confluence.aligned ? "✅ ALIGNED" : "⚠️ MIXED";
   lines.push(`HTF (4h+1d): <b>${htfStatus}</b> · LTF (15m+1h): <b>${ltfStatus}</b> · ${alignSym}`);
+  // Stage 2 status (Aronson-validated LONG gate)
+  const stage2Badge = a.stage2 === true ? "✅ Stage 2 (close > 150d SMA)" : a.stage2 === false ? "❌ Pre-Stage 2 (LONG gated off)" : "⚠️ Stage 2 unknown (insufficient history)";
+  lines.push(`Trend: ${stage2Badge}`);
 
   if (plan && a.ticker) {
     const current = a.ticker.lastPrice;
