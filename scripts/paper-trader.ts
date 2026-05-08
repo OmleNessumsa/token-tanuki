@@ -168,12 +168,19 @@ async function processOpenPositions(p: PaperPortfolio): Promise<void> {
 
 async function openNewPositions(p: PaperPortfolio): Promise<void> {
   const signals = readSignals();
+  // Require at minimum: stop + TP1. TP2/TP3 are nice-to-have; we synthesize
+  // them via 1×R progression if the trade plan didn't produce them.
   const newOnes = signals.filter((s) =>
     s.fired && s.side === "LONG" && s.stopPrice !== null && s.tp1Price !== null &&
-    s.tp2Price !== null && s.tp3Price !== null &&
     !p.alreadyTradedSignalIds.includes(s.id),
   );
   for (const sig of newOnes) {
+    const stop = sig.stopPrice!;
+    const tp1 = sig.tp1Price!;
+    const oneR = sig.entryPrice - stop;
+    // Fallbacks: TP2 = entry + 2R, TP3 = entry + 3R if not provided
+    const tp2 = sig.tp2Price ?? sig.entryPrice + 2 * oneR;
+    const tp3 = sig.tp3Price ?? sig.entryPrice + 3 * oneR;
     const pos: PaperPosition = {
       id: sig.id,
       signalId: sig.id,
@@ -184,11 +191,11 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
       entryPrice: sig.entryPrice,
       notionalUsd: NOTIONAL_PER_TRADE,
       leverage: LEVERAGE,
-      initialStop: sig.stopPrice!,
-      currentStop: sig.stopPrice!,
-      tp1Price: sig.tp1Price!,
-      tp2Price: sig.tp2Price!,
-      tp3Price: sig.tp3Price!,
+      initialStop: stop,
+      currentStop: stop,
+      tp1Price: tp1,
+      tp2Price: tp2,
+      tp3Price: tp3,
       remainingFraction: 1.0,
       scaleOuts: [],
       lastChecked: Date.now(),
