@@ -209,29 +209,86 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
 async function maybePostDailySummary(p: PaperPortfolio): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   if (p.lastDailySummary === today) return;
-  // Only at 09:00 UTC ± 10 min
+  // Fire at 07:00 UTC ± 10 min (= 09:00 NL CEST / 08:00 NL CET — "ochtend").
   const hour = new Date().getUTCHours();
   const minute = new Date().getUTCMinutes();
-  if (hour !== 9 || minute > 10) return;
+  if (hour !== 7 || minute > 10) return;
 
+  // Fetch live prices for open positions to compute unrealized P&L
+  const livePrices: Record<string, number> = {};
+  for (const pos of p.openPositions) {
+    try {
+      const t = await getFuturesTicker(pos.symbol);
+      if (t) livePrices[pos.symbol] = t.lastPrice;
+    } catch { /* ignore */ }
+    await sleep(SLEEP_BETWEEN_CHECKS_MS);
+  }
+  const unrealizedUsd = (pos: PaperPosition): number => {
+    const px = livePrices[pos.symbol];
+    if (px === undefined) return 0;
+    return computeSlicePnl(pos.entryPrice, px, pos.notionalUsd, pos.leverage, pos.remainingFraction);
+  };
+  const unrealizedR = (pos: PaperPosition): number => {
+    const px = livePrices[pos.symbol];
+    if (px === undefined) return 0;
+    return computeR(pos.entryPrice, px, pos.initialStop);
+  };
+  const totalUnrealized = p.openPositions.reduce((a, pos) => a + unrealizedUsd(pos), 0);
+
+  // Closed in last 24h
+  const since24h = Date.now() - 86_400_000;
+  const recentClosed = p.closedTrades.filter((t) => t.closedTs >= since24h);
+  const recentPnl = recentClosed.reduce((a, t) => a + t.totalPnlUsd, 0);
+
+  // Lifetime stats
   const wins = p.closedTrades.filter((t) => t.totalRMultiple > 0).length;
   const losses = p.closedTrades.length - wins;
   const totalR = p.closedTrades.reduce((a, t) => a + t.totalRMultiple, 0);
   const days = Math.max(1, Math.floor((Date.now() - p.startedAt) / 86_400_000));
   const pct = ((p.cash - p.initialCash) / p.initialCash) * 100;
-  const lines = [
-    `🤖 <b>Claude Paper</b> — Day ${days} summary`,
-    `Book: $${p.cash.toFixed(2)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`,
-    `Closed trades: ${p.closedTrades.length} (${wins}W/${losses}L) · total ${fmtR(totalR)}`,
-    `Open positions: ${p.openPositions.length}`,
-  ];
-  if (p.openPositions.length > 0) {
-    lines.push("");
-    for (const pos of p.openPositions) {
-      const ageDays = ((Date.now() - pos.openTs) / 86_400_000).toFixed(1);
-      lines.push(`  ${pos.asset.padEnd(6)} entry $${fmtPx(pos.entryPrice)} · stop $${fmtPx(pos.currentStop)} · ${ageDays}d · ${(pos.remainingFraction * 100).toFixed(0)}% open`);
-    }
+
+  const lines: string[] = [];
+  lines.push(`🤖 <b>Claude Paper — Day ${days} ochtend rapport</b>`);
+  lines.push("");
+  lines.push(`📊 <b>Book:</b> $${p.cash.toFixed(2)} (${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)`);
+  if (totalUnrealized !== 0) {
+    lines.push(`   Unrealized op open: ${fmtUsd(totalUnrealized)}`);
+    lines.push(`   <i>Total inc. unrealized: $${(p.cash + totalUnrealized).toFixed(2)}</i>`);
   }
+  if (recentClosed.length > 0) {
+    lines.push(`   Sinds gisteren (closed): ${fmtUsd(recentPnl)} over ${recentClosed.length} trades`);
+  }
+  lines.push("");
+
+  if (p.openPositions.length > 0) {
+    lines.push(`💼 <b>Open: ${p.openPositions.length} posities</b>`);
+    const sorted = [...p.openPositions].sort((a, b) => unrealizedUsd(b) - unrealizedUsd(a));
+    for (const pos of sorted) {
+      const ageDays = ((Date.now() - pos.openTs) / 86_400_000).toFixed(1);
+      const px = livePrices[pos.symbol];
+      const u = unrealizedUsd(pos);
+      const r = unrealizedR(pos);
+      const pxLine = px !== undefined ? `$${fmtPx(pos.entryPrice)} → $${fmtPx(px)}` : `entry $${fmtPx(pos.entryPrice)}`;
+      lines.push(`  <b>${pos.asset.padEnd(6)}</b> ${fmtUsd(u)} (${fmtR(r)}) · ${pxLine} · ${ageDays}d · ${(pos.remainingFraction * 100).toFixed(0)}% open`);
+    }
+    lines.push("");
+  }
+
+  if (recentClosed.length > 0) {
+    lines.push(`✅ <b>Closed laatste 24u (${recentClosed.length}):</b>`);
+    for (const t of recentClosed) {
+      lines.push(`  ${t.asset.padEnd(6)} ${t.finalExitReason.padEnd(8)} ${fmtR(t.totalRMultiple)} · ${fmtUsd(t.totalPnlUsd)}`);
+    }
+    lines.push("");
+  }
+
+  if (p.closedTrades.length > 0) {
+    const avgR = totalR / p.closedTrades.length;
+    lines.push(`📈 <b>Lifetime:</b> ${p.closedTrades.length} closed (${wins}W/${losses}L) · avg ${fmtR(avgR)} · totaal ${fmtR(totalR)}`);
+  } else {
+    lines.push(`📈 <b>Lifetime:</b> nog geen closed trades`);
+  }
+
   await sendTelegram(lines.join("\n"), { parse_mode: "HTML" });
   p.lastDailySummary = today;
 }
