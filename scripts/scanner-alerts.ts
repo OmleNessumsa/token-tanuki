@@ -128,6 +128,13 @@ async function main(): Promise<void> {
       const high = a.verdict.confidence === "high" && a.confluence.aligned && a.confluence.score >= minComposite;
       const isLong = a.verdict.side === "LONG";
       const isShort = a.verdict.side === "SHORT";
+      // SHORT side requires extra "actually crashing" evidence — composite ≥75 +
+      // aligned bearish alone has fired false signals historically. Need 24h
+      // drop ≥3% AND price below 150d SMA (Stage 4 territory) to fire.
+      const ticker24hPct = (a.ticker?.riseFallRate ?? 0) * 100;
+      const shortCrashing = isShort && high && ticker24hPct <= -3 && a.stage2 === false;
+      const longQualifies = isLong && high;
+      const fireSignal = longQualifies || shortCrashing;
       const prev = state.alerted[t.symbol];
       const ageHours = prev ? (Date.now() - prev.ts) / 3_600_000 : Infinity;
       const isNew = !prev ||
@@ -135,13 +142,15 @@ async function main(): Promise<void> {
         Math.abs(prev.composite - a.confluence.score) > 10 ||
         ageHours >= REALERT_AFTER_HOURS;
 
-      if (high && (isLong || isShort) && (force || isNew)) {
+      if (fireSignal && (force || isNew)) {
         newAlerts.push({ asset, symbol: t.symbol, analysis: a });
         state.alerted[t.symbol] = { side: a.verdict.side, composite: a.confluence.score, ts: Date.now() };
         process.stderr.write(`★ ${a.verdict.side} ${a.confluence.score} (NEW)\n`);
         logSignal(a, t.symbol, asset, true, null);
-      } else if (high) {
+      } else if (high && longQualifies) {
         process.stderr.write(`${a.verdict.side} ${a.confluence.score} (already alerted)\n`);
+      } else if (isShort && high) {
+        process.stderr.write(`${a.verdict.side} ${a.confluence.score} (not crashing — 24h ${ticker24hPct.toFixed(1)}% / stage2=${a.stage2})\n`);
       } else {
         process.stderr.write(`${a.verdict.side} ${a.confluence.score}\n`);
         // Shadow log: signal would have been LONG except for Stage 2 gate.
