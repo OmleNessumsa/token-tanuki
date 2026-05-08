@@ -16,6 +16,29 @@ import { join } from "node:path";
 const STATE_DIR = process.env.CRYPTOTRADER_STATE_DIR ?? join(homedir(), ".cryptotrader");
 const LOG_FILE = join(STATE_DIR, "signals.jsonl");
 
+/**
+ * Rich features captured at signal-time, used by paper-analyze to find
+ * patterns in winners vs losers. Anything we record here can be cross-tab'd.
+ */
+export interface SignalFeatures {
+  /** Per-timeframe composite score (0-100). */
+  tfScores: Record<string, number>;       // e.g. {"5m":63, "15m":71, "1h":78, "4h":81, "1d":80}
+  tfDirections: Record<string, string>;   // bullish/bearish/neutral per tf
+  fundingRegime: string | null;           // "neutral" | "normal_bull" | "crowded_long" | "euphoria" | "paid_to_long"
+  fundingRatePct: number | null;
+  intermarketRegime: string;              // "altseason" | "btc_dump" | "neutral" | "unknown"
+  trendTemplateRatio: number | null;      // criteriaPassed / criteriaTotal (0..1)
+  rsi1h: number | null;
+  hasBreakout: boolean;
+  hasVolumeConfirmation: boolean;
+  recentBullishPatterns: string[];
+  recentBearishPatterns: string[];
+  activeSetups: string[];                 // e.g. ["holyGrail-long", "turtleSoup-long"]
+  /** Hour of day (UTC) and day of week (0=Sun, 6=Sat). */
+  hourUtc: number;
+  dayOfWeek: number;
+}
+
 export interface SignalRecord {
   /** unique id: `${symbol}-${ts}` so duplicate suppression is cheap. */
   id: string;
@@ -39,6 +62,8 @@ export interface SignalRecord {
   tp1Price: number | null;
   tp2Price: number | null;
   tp3Price: number | null;
+  /** Rich feature snapshot at signal time. Optional for backward compat with old log entries. */
+  features?: SignalFeatures;
   /** Realized outcome — populated later by track-outcomes.ts. */
   outcome: SignalOutcome | null;
 }

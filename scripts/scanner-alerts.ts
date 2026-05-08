@@ -45,6 +45,19 @@ function saveState(s: ScanState): void {
 function logSignal(a: FuturesAnalysis, symbol: string, asset: string, fired: boolean, shadowReason: string | null): void {
   if (!a.ticker) return;
   const plan = generateTradePlan({ analysis: a, accountUsd: 10000, leverage: 20, riskPctPerTrade: 1 });
+  // Build rich feature snapshot — used by paper-analyze to find W/L patterns.
+  const tfScores: Record<string, number> = {};
+  const tfDirections: Record<string, string> = {};
+  for (const tf of a.timeframes) {
+    tfScores[tf.timeframe] = Math.round(tf.chart.score);
+    tfDirections[tf.timeframe] = tf.direction;
+  }
+  const oneHour = a.timeframes.find((t) => t.timeframe === "1h");
+  const dailyOrFallback = a.timeframes.find((t) => t.timeframe === "1d") ?? a.timeframes[a.timeframes.length - 1];
+  const recentBullish = dailyOrFallback?.chart.recentBullishPatterns ?? [];
+  const recentBearish = dailyOrFallback?.chart.recentBearishPatterns ?? [];
+  const setups = (dailyOrFallback?.chart.setups ?? []).filter((s) => s.triggered).map((s) => `${s.setup}-${s.direction}`);
+  const now = new Date();
   appendSignal({
     ts: Date.now(),
     symbol,
@@ -63,6 +76,24 @@ function logSignal(a: FuturesAnalysis, symbol: string, asset: string, fired: boo
     tp1Price: plan?.targets[0]?.price ?? null,
     tp2Price: plan?.targets[1]?.price ?? null,
     tp3Price: plan?.targets[2]?.price ?? null,
+    features: {
+      tfScores,
+      tfDirections,
+      fundingRegime: a.funding?.regime ?? null,
+      fundingRatePct: a.funding ? a.funding.ratePerCycle * 100 : null,
+      intermarketRegime: a.intermarket.regime,
+      trendTemplateRatio: a.trendTemplate && a.trendTemplate.criteriaTotal > 0
+        ? a.trendTemplate.criteriaPassed / a.trendTemplate.criteriaTotal
+        : null,
+      rsi1h: oneHour?.chart.rsi ?? null,
+      hasBreakout: dailyOrFallback?.chart.breakout !== null && dailyOrFallback?.chart.breakout !== undefined,
+      hasVolumeConfirmation: dailyOrFallback?.chart.volumeConfirmation ?? false,
+      recentBullishPatterns: recentBullish,
+      recentBearishPatterns: recentBearish,
+      activeSetups: setups,
+      hourUtc: now.getUTCHours(),
+      dayOfWeek: now.getUTCDay(),
+    },
     outcome: null,
   });
 }
