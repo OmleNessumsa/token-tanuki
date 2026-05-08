@@ -370,7 +370,9 @@ async function processUpdate(u: TgUpdate): Promise<void> {
     const msg = u.message;
     const text = msg.text!.trim();
     const chatId = msg.chat.id;
-    log(`msg from ${msg.from?.username ?? msg.from?.id}: ${text.slice(0, 40)}`);
+    const chatType = msg.chat.type;
+    const chatTitle = (msg.chat as { title?: string }).title ?? "";
+    log(`msg [chat=${chatId}/${chatType}${chatTitle ? "/" + chatTitle : ""}] from ${msg.from?.username ?? msg.from?.id}: ${text.slice(0, 40)}`);
     if (text === "/start") return sendMainMenu(chatId);
     if (text === "/help") return sendHelp(chatId);
     if (text === "/positions") return handlePositions(chatId);
