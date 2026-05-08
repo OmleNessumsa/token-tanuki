@@ -362,7 +362,69 @@ async function handleScanPrompt(chatId: number): Promise<void> {
 }
 
 async function handleTop(chatId: number): Promise<void> {
-  await sendKbd(chatId, "🔥 <i>Top setups scan duurt ~3 min — alerts verschijnen automatisch in deze chat zodra nieuwe signalen verschijnen.</i>\n\nVoor een specifieke coin: gebruik <b>Scan</b> of typ het symbol.", MAIN_MENU);
+  await sendKbd(chatId, "🔥 <i>Top setups — scan top-15 perps... ~30-60s</i>", MAIN_MENU);
+  await tgCall("sendChatAction", { chat_id: chatId, action: "typing" }).catch(() => undefined);
+
+  try {
+    const tickers = await fetchJson<{ data: { symbol: string; amount24: number }[] }>("https://contract.mexc.com/api/v1/contract/ticker");
+    const SKIP = new Set(["BTC_USDT", "ETH_USDT", "XAUT_USDT", "SILVER_USDT", "GOLD_USDT", "PAXG_USDT", "USDC_USDT", "USOIL_USDT", "UKOIL_USDT", "SP500_USDT"]);
+    const filtered = tickers.data
+      .filter((t) => t.symbol.endsWith("_USDT"))
+      .filter((t) => !SKIP.has(t.symbol))
+      .sort((a, b) => b.amount24 - a.amount24)
+      .slice(0, 15);
+
+    const results: Array<{ asset: string; symbol: string; analysis: Awaited<ReturnType<typeof analyzeFutures>> }> = [];
+    for (const t of filtered) {
+      const asset = t.symbol.replace(/_USDT$/, "").replace(/^TONCOIN$/, "TON");
+      try {
+        const a = await analyzeFutures(asset);
+        if (a.perpSymbol) results.push({ asset, symbol: t.symbol, analysis: a });
+      } catch { /* skip on error */ }
+      // Send typing every 5 to keep bubble alive
+      if (results.length % 5 === 0) {
+        await tgCall("sendChatAction", { chat_id: chatId, action: "typing" }).catch(() => undefined);
+      }
+    }
+
+    // Rank: LONG with Stage 2 first, then LONG without, then SHORT, then FLAT, all by composite within group
+    const rank = (r: typeof results[0]): number => {
+      const a = r.analysis;
+      const sideTier = a.verdict.side === "LONG" ? (a.stage2 === true ? 3000 : 2000) : a.verdict.side === "SHORT" ? 1000 : 0;
+      return sideTier + a.confluence.score;
+    };
+    results.sort((a, b) => rank(b) - rank(a));
+    const top = results.slice(0, 6);
+
+    if (top.length === 0) {
+      await sendKbd(chatId, "Geen scan-resultaten — probeer opnieuw.", MAIN_MENU);
+      return;
+    }
+
+    const lines: string[] = [`🔥 <b>Top setups</b> — ${results.length} perps gescand`];
+    lines.push("");
+    for (const r of top) {
+      const a = r.analysis;
+      const sideEmoji = a.verdict.side === "LONG" ? "🟢" : a.verdict.side === "SHORT" ? "🔴" : "⚪";
+      const stage2Mark = a.stage2 === true ? "✅" : a.stage2 === false ? "❌" : "⚠";
+      const confSym = a.verdict.confidence === "high" ? "★" : a.verdict.confidence === "medium" ? "·" : " ";
+      const alignSym = a.confluence.aligned ? "" : "  <i>(MTF mixed)</i>";
+      lines.push(`${sideEmoji} <b>${r.asset.padEnd(8)}</b> ${a.verdict.side.padEnd(5)} ${a.confluence.score}/100 ${confSym}  Stage2 ${stage2Mark}${alignSym}`);
+    }
+    lines.push("");
+    lines.push(`<i>Tap symbol voor full trade card</i>`);
+
+    const buttons: InlineKeyboardButton[][] = [];
+    for (let i = 0; i < top.length; i += 3) {
+      const row: InlineKeyboardButton[] = [];
+      for (let j = i; j < Math.min(i + 3, top.length); j++) row.push({ text: top[j]!.asset, callback_data: `card:${top[j]!.asset}` });
+      buttons.push(row);
+    }
+    buttons.push([{ text: "🔄 Refresh", callback_data: "cmd:top" }, { text: "« Menu", callback_data: "cmd:start" }]);
+    await sendKbd(chatId, lines.join("\n"), { inline_keyboard: buttons });
+  } catch (e) {
+    await sendKbd(chatId, `❌ Scan fout: ${e instanceof Error ? e.message : String(e)}`, MAIN_MENU);
+  }
 }
 
 async function processUpdate(u: TgUpdate): Promise<void> {
