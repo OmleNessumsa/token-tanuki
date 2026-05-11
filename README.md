@@ -1,180 +1,205 @@
 # cryptotrader
 
-Give it a token address (Ethereum or Solana). Get a `BUY` / `WAIT` / `AVOID` verdict.
+Futures + token analyzer + paper-trader. Multi-timeframe scoring on MEXC perps with a Stage 2 trend filter, an interactive Telegram bot for live signals and position management, a paper-trading book, and DEX-side token risk checks.
 
 ```
-$ cryptotrader 0x6982508145454Ce325dDbE47a25d4ec3d2311933
+$ cryptotrader futures ZEC --leverage 20 --account 10000
 
- WAIT   composite 68/100
+ LONG   high confidence  composite 85/100  █████████░
 
-Pepe (PEPE/WETH)
-  ETHEREUM · uniswap · 0xA43fe16908251ee70EF74718545e4FE6C5cCEc9f
-  Price: $0.000003923 · Liq: $27.42M · 24h vol: $284.1k · Age: 1113.8d
+ZEC → ZEC_USDT
+  Last: $598.11 · 24h +6.42% · OI 9.4M contracts
+  Funding 0.0100% (10.9% APR) — normal long pressure
 
-Security ████████░░ 76/100
-  ⚠ [goplus] Blacklist function present
-  ⚠ [goplus] LP only 0% locked (V3/blue-chip — context applies)
+Multi-timeframe:
+  5m   ▲ bull  ████░░  62/100  trend=up    rsi=58
+  15m  ▲ bull  █████░  74/100  trend=up    rsi=61
+  1h   ▲ bull  █████░  79/100  trend=up    rsi=63
+  4h   ▲ bull  ██████  92/100  trend=up    rsi=58
+  1d   ▲ bull  ████░░  66/100  trend=up    rsi=67
+  HTF (4h+1d): bullish | LTF (15m+1h): bullish | ALIGNED ✓
 
-Phase: unknown — age: 26731h · drawdown from ATH: 2.0%
-
-Chart ██████░░░░ 51/100
-  · HTF trend flat
-  · RSI 55 momentum healthy
-  · Bullish patterns: bullishEngulfing
+Trade Card @ 20× leverage · $10000 account · 1% risk
+────────────────────────────────────────────────────────────
+  Entry:    $598.11   Stop: $579.72 (-3.07%, liq-cap)
+  Liq:      $568.21   buffer 5.01%
+  Targets:  TP1 → $634.89  R:R 2.0  close 50%
+            TP2 → $643.82  R:R 2.4  close 30%  doubleBottom MM
+  Position: 16.72 ZEC = $10,000 notional
 ```
 
-## What it does
+## Three entry points
 
-Takes a single token address and outputs a verdict by combining:
+1. **Futures CLI** — multi-timeframe MEXC perps analysis with trade card
+   ```
+   cryptotrader futures <SYMBOL> --leverage 20 --account 10000
+   ```
+2. **DEX token CLI** — Ethereum/Solana address risk check
+   ```
+   cryptotrader <0x... or solana-address>
+   ```
+3. **Telegram bot** — `@your_bot`. `/start /positions /scan /top` plus plain ticker text. Inline keyboards. Single-message digests sorted by urgency.
 
-1. **Hard security disqualifiers** — honeypot detection, mint/freeze authority (Solana), hidden owner, sell tax > 15%, top wallet > 30%, LP not locked, etc. Any one fails → AVOID.
-2. **Lifecycle phase classification** — for memecoins: stealth launch / initial pump / accumulation / parabolic / distribution / bleed-out / dead. The same chart shape means different things in different phases.
-3. **Classical TA scoring** — trend (EMA), RSI, candle patterns (Bulkowski-weighted), divergence, volume confirmation.
-4. **Composite verdict** — `BUY` only when security is high AND phase is buyable AND chart is healthy AND liquidity is real.
+## Futures engine
+
+**Multi-timeframe composite scoring** across 5m / 15m / 1h / 4h / 1d:
+- Weighted composite: 5m=5%, 15m=15%, 1h=25%, 4h=30%, 1d=25%
+- HTF (4h+1d) majority direction governs; LTF (15m+1h) must agree for HIGH confidence
+- Funding-rate adjustment: euphoria –15, crowded long –8, paid-to-long +8
+- Intermarket regime (Murphy BTC.D): btc_dump ×0.3 composite, altseason ×1.2
+- Pattern detection: Bulkowski-weighted candle patterns, Donchian breakouts, divergence
+- **Stage 2 filter (Weinstein)** — gates LONG verdicts to FLAT when `close < 150d SMA`. Validated via Aronson backtest on 16mo of top-30 perps: +7.4R / +0.024R expectancy / p<0.0001.
+
+**Trade plan generator** — leverage-aware stops within liquidation budget, ATR-based or pattern-measured targets, R:R calculated against initial risk.
+
+## DEX token analyzer
+
+Takes a single ETH or Solana address and outputs `BUY` / `WAIT` / `AVOID`:
+
+1. **Hard security disqualifiers** — honeypot (Honeypot.is, GoPlus), mint/freeze authority (Solana), hidden owner, sell tax > 15%, top wallet > 30%, LP not locked. Any one → AVOID.
+2. **Lifecycle phase** — stealth / pump / accumulation / parabolic / distribution / bleed-out / dead.
+3. **Classical TA** — EMA trend, RSI, candle patterns, divergence, volume.
+4. **Composite verdict** — `0.40 × security + 0.20 × phase + 0.25 × chart + 0.15 × liquidity`. BUY needs composite ≥ 70 AND security ≥ 70 AND phase buyable.
+
+## Paper-trader
+
+- `$1,000` book, `$50` notional per signal × 20× leverage
+- Opens on every fired LONG signal (Stage 2 ✅)
+- Scale-outs: TP1 50%, TP2 30%, TP3 20%
+- Move stop to entry after TP1
+- Daily morning digest 07:00 UTC, weekly pattern review on Sunday
+- Three isolated tenants (Lukas / Roy / Claude) via `$CRYPTOTRADER_STATE_DIR` and `$CRYPTOTRADER_ENV`
+
+## Production deployment
+
+Runs 24/7 on a Hetzner Cloud VPS:
+
+| Service | Type | Cadence |
+|---|---|---|
+| `cryptotrader-bot.service` | systemd long-running | always-on |
+| `cryptotrader-scanner.timer` | systemd timer | every 30m, top-30 perps |
+| `cryptotrader-paper.timer` | systemd timer | every 5m, paper book updates |
+| `cryptotrader-outcomes.timer` | systemd timer | hourly, signal-outcome tracking |
+| `cryptotrader-position-watch.timer` | systemd timer | every 5m, live MEXC positions |
+
+State per tenant in `~/.cryptotrader-<name>/`. Signal log is JSONL with full feature snapshot per signal for offline learning.
 
 ## Install
 
 ```bash
-git clone <repo>
+git clone https://github.com/lukasuntangle/cryptotrader.git
 cd cryptotrader
 npm install
-npm run build       # compiles TS to dist/
+cp .env.example .env       # add your keys
+npm test                   # 158 tests
 ```
 
 ## Usage
 
 ```bash
-# Run via tsx (no build needed)
-npm run dev -- <address>
+# Futures multi-TF analysis
+npm run dev:futures -- ZEC --leverage 20 --account 10000
 
-# Or after build
-node dist/cli.js <address>
-
-# JSON output (for scripting)
-npm run dev -- <address> --json
-```
-
-Examples:
-
-```bash
+# DEX token check
 npm run dev -- 0x6982508145454Ce325dDbE47a25d4ec3d2311933   # PEPE
-npm run dev -- EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm # WIF
+
+# Top-30 perps scanner (terminal)
+npx tsx scripts/scan-futures.ts
+
+# Live positions report → Telegram digest
+npx tsx scripts/positions-report.ts
+
+# MEXC account stats (live)
+npx tsx scripts/mexc-history.ts             # closed positions: W/L/PF
+npx tsx scripts/mexc-pattern.ts --pages 10  # tail-loss diagnostic
+
+# Per-tenant signal stats
+CRYPTOTRADER_STATE_DIR=~/.cryptotrader-roy npx tsx scripts/signal-stats.ts
 ```
 
-Exit codes: `0` for BUY/WAIT, `2` for AVOID, `1` on invocation error.
+## Environment
 
-## API keys (optional)
+Free-tier APIs work out of the box. Optional keys raise limits and unlock features:
 
-The tool runs entirely on free, no-key APIs by default (DexScreener, GeckoTerminal, GoPlus, Honeypot.is, RugCheck). Optional keys raise rate limits and unlock additional Solana-specific data:
+| Variable | Service | What it gives you |
+|---|---|---|
+| `MEXC_API_KEY` / `MEXC_API_SECRET` | MEXC futures | **Required** for live positions + account stats (read-only OK) |
+| `TELEGRAM_BOT_TOKEN` / `TELEGRAM_CHAT_ID` | Telegram | **Required** for bot + alerts |
+| `COINGECKO_API_KEY` | CoinGecko | 30 rpm vs 5 rpm anonymous |
+| `BIRDEYE_API_KEY` | Birdeye | Better Solana coverage |
+| `HELIUS_API_KEY` | Helius | On-chain holder/metadata |
+| `ETHERSCAN_API_KEY` | Etherscan | Authoritative ETH contract verification |
+| `GOPLUS_ACCESS_TOKEN` | GoPlus | Higher security-check rate limit |
+| `COINGLASS_API_KEY` | CoinGlass | Funding extremes + OI history (post-validation) |
 
-```bash
-cp .env.example .env
-# Edit .env to add any keys you have
-```
-
-| Variable | Service | Tier needed | Notes |
-|---|---|---|---|
-| `BIRDEYE_API_KEY` | Birdeye | Free 30k CU/mo | Better Solana token + OHLCV coverage |
-| `HELIUS_API_KEY` | Helius | Free 1M credits/mo | Direct on-chain holder/metadata reads |
-| `ETHERSCAN_API_KEY` | Etherscan | Free 100k req/day | Authoritative contract verification |
-| `GOPLUS_ACCESS_TOKEN` | GoPlus | Free signup | Higher rate limit (vs ~30 req/min anonymous) |
+Multi-tenant: set `CRYPTOTRADER_ENV=/path/to/.env.<tenant>` and `CRYPTOTRADER_STATE_DIR=/path/to/.cryptotrader-<tenant>` to isolate signal logs, paper books, and credentials per persona.
 
 ## Architecture
 
 ```
 src/
-  cli.ts              # entry: parse arg, call analyze, format output
-  analyze.ts          # orchestrator: fetch in parallel, compose verdict
-  chain.ts            # detect ethereum vs solana from address
-  config.ts           # env vars + base URLs
-  http.ts             # fetch with timeout + retry
-  schemas.ts          # Zod schemas for all API responses
-  format.ts           # CLI verdict pretty-printer
-  clients/            # one file per API
-    dexscreener.ts    # pool discovery, liquidity, 24h stats
-    geckoterminal.ts  # OHLCV (1m / 5m / 1h / 1d)
-    goplus.ts         # token security (multi-chain)
-    honeypot.ts       # sell simulation (EVM only)
-    rugcheck.ts       # Solana risk score + holder graph
-  analysis/           # pure functions, no I/O
-    indicators.ts     # SMA, EMA, RSI, ATR, OBV, Bollinger, swings, divergence
-    patterns.ts       # candle pattern detection
-    security.ts       # disqualifier rules + security score
-    lifecycle.ts      # memecoin phase classification
-    chart.ts          # composite chart score
-    verdict.ts        # final BUY/WAIT/AVOID composition
-tests/                # vitest, 65 tests, 86%+ coverage on analysis modules
+  cli.ts                   # DEX/spot entry
+  cli-futures.ts           # futures entry
+  bot.ts                   # interactive Telegram bot
+  analyze.ts               # DEX token pipeline
+  analyze-futures.ts       # multi-TF futures pipeline
+  paper-portfolio.ts       # paper-trader state machine
+  signal-log.ts            # JSONL signal recorder
+  clients/
+    mexc-futures.ts        # public perp klines, funding, OI
+    mexc-private.ts        # signed positions/balance/history (read-only)
+    telegram.ts            # HTML-mode sendMessage
+    coinglass.ts           # funding / OI / liq aggregates
+    dexscreener.ts / geckoterminal.ts / goplus.ts / honeypot.ts / rugcheck.ts
+  analysis/
+    trade-plan.ts          # leverage-aware stops + targets
+    breakout.ts            # Donchian 20d + volume confirmation
+    intermarket.ts         # Murphy BTC.D regime classifier
+    indicators.ts          # SMA/EMA/RSI/ATR/OBV/Bollinger/swings/divergence
+    patterns.ts            # Bulkowski-weighted candle patterns
+    security.ts            # disqualifier rules
+    lifecycle.ts           # memecoin phase classifier
+    chart.ts / verdict.ts  # composite scoring
+scripts/
+  scanner-alerts.ts        # top-30 scan → Telegram digest
+  positions-report.ts      # MEXC positions → recommendations
+  paper-trader.ts          # paper book tick
+  paper-analyze.ts         # weekly pattern review
+  track-outcomes.ts        # signal-outcome backfill
+  signal-stats.ts          # tenant W/L/R-multiples
+  mexc-history.ts          # closed positions stats
+  mexc-pattern.ts          # tail-loss diagnostic
 docs/
-  classical-ta.md     # Bulkowski-cited TA reference
-  crypto-ta.md        # memecoin lifecycle, rug/honeypot/wash patterns
-  token-security.md   # ETH + SOL hard disqualifiers, locker addresses
-  data-apis.md        # API endpoint reference
+  SESSION_STATE.md         # single source of truth for current state
+  BACKTEST_RESULTS.md      # Aronson run on Stage 2 filter
+  classical-ta.md          # Bulkowski / Murphy / Pring / Edwards-Magee
+  crypto-ta.md             # memecoin lifecycle + manipulation patterns
+  token-security.md        # ETH + SOL hard disqualifiers
+  data-apis.md             # API endpoint reference
 ```
-
-## How verdicts are decided
-
-The composer applies these rules in order:
-
-1. **Any fatal security finding** → AVOID, composite 0.
-2. **Liquidity < $10k** → AVOID (untradeable, exit liquidity for snipers).
-3. **Phase says avoid** (parabolic, distribution top, bleed-out, dead, stealth-launch) → AVOID.
-4. Otherwise compute composite = `0.40 × security + 0.20 × phase + 0.25 × chart + 0.15 × liquidity`.
-5. **BUY** if composite ≥ 70 AND phase is buyable AND security ≥ 70.
-6. **WAIT** if composite ≥ 50.
-7. Otherwise **AVOID**.
-
-## Hard security disqualifiers
-
-Any one triggers AVOID:
-
-**Universal:**
-- Honeypot detected (Honeypot.is or GoPlus)
-- Sell tax > 15%
-- `cannot_sell_all` flag set
-- Top non-LP wallet > 30% of supply
-- Liquidity < $10k
-- LP not locked AND not burned (held by EOA — V2 only)
-
-**Ethereum:**
-- Unverified contract source > 24h after launch
-- Hidden owner / can take back ownership
-- Owner can rewrite balances
-- `selfdestruct` enabled
-- Mintable + owner not renounced
-- Tax modifiable + current sell tax > 5%
-
-**Solana:**
-- Mint authority not null (unless allow-listed stablecoin)
-- Freeze authority not null (same exception)
-- Token-2022 with `permanentDelegate`, `transferHook`, or `defaultAccountState=Frozen`
-- RugCheck flag at danger level
-- Insider cluster > 40% of supply
-- `rugged: true`
-
-## Limitations & caveats
-
-- **Memecoin-tuned.** Lifecycle phases are designed for low-cap launches. For mature blue-chips (USDC, ETH, established DeFi tokens), the phase classifier will return "unknown" — that's expected and fine.
-- **Pair selection** — for tokens with many DEX listings, the picker chooses the highest-liquidity standard-AMM pool where the queried address is the base token. Edge cases (e.g., USDC searched on Solana) can pick a less-canonical pool.
-- **Free-tier rate limits** — GeckoTerminal allows ~30 req/min unauthenticated. The tool sequences OHLCV calls to stay under the cap; back-to-back analyses of many tokens may need pacing.
-- **Honeypot detection is EVM-only** — Solana doesn't have an equivalent sell-simulation API today. The tool relies on RugCheck heuristics and freeze-authority checks instead.
-- **No live execution.** This is read-only analysis. It does not place trades.
-- **Not financial advice.** It's a structured opinion based on rules. The market doesn't care about your rules.
 
 ## Development
 
 ```bash
-npm test                 # run all tests
-npm run test:coverage    # coverage report (target: 80% on analysis/*)
-npm run typecheck        # tsc --noEmit
-npm run dev -- <addr>    # run CLI without build
+npm test                   # vitest, 158 tests
+npm run test:coverage      # 80%+ on analysis/*
+npm run typecheck          # tsc --noEmit
 ```
 
 ## References
 
-The four research documents under `docs/` are the source of truth for the rules implemented in `src/analysis/`. They're built from:
+Built from the canon TA references in `docs/`:
 
-- Bulkowski's *Encyclopedia of Chart Patterns* and *Encyclopedia of Candlestick Charts* — pattern reliability statistics
-- Murphy, Edwards & Magee — classical TA
-- GoPlus, Honeypot.is, RugCheck official API docs — security check semantics
-- Solana SPL Token + Token-2022 program docs — mint/freeze/extension semantics
-- Official Uniswap V2/V3, Raydium, Pump.fun docs — LP mechanics
+- Bulkowski — *Encyclopedia of Chart Patterns*, *Encyclopedia of Candlestick Charts* (pattern reliability stats)
+- Murphy — *Technical Analysis of the Financial Markets* (intermarket)
+- Pring — *Technical Analysis Explained* (momentum)
+- Weinstein — *Secrets for Profiting in Bull and Bear Markets* (Stage 2 filter)
+- DeMark — *The New Science of Technical Analysis* (sequential setups)
+- Aronson — *Evidence-Based Technical Analysis* (statistical validation)
+- Edwards & Magee — *Technical Analysis of Stock Trends* (classical TA)
+- GoPlus, Honeypot.is, RugCheck official docs (security semantics)
+- Solana SPL Token + Token-2022, Uniswap V2/V3, Raydium, Pump.fun official docs
+
+## Not financial advice
+
+Structured rules-based analysis. The market doesn't care about your rules.

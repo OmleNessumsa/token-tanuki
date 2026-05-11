@@ -116,3 +116,56 @@ export async function hasStopLoss(symbol: string, positionId: number): Promise<b
     (o.side === 4 || o.side === 2),
   );
 }
+
+/**
+ * A closed (historical) futures position. `realised` is final PnL in USDT
+ * (positive = win, negative = loss), already including funding fees.
+ */
+export interface MexcHistoryPosition {
+  positionId: number;
+  symbol: string;
+  positionType: 1 | 2;       // 1 = LONG, 2 = SHORT
+  openType: 1 | 2;           // 1 = isolated, 2 = cross
+  state: number;             // 3 = closed
+  holdVol: number;
+  holdAvgPrice: number;      // entry
+  closeAvgPrice: number;     // average exit price
+  closeVol: number;
+  openAvgPrice: number;
+  liquidatePrice: number;
+  oim: number;
+  im: number;
+  holdFee: number;
+  realised: number;          // realized PnL in USDT
+  leverage: number;
+  createTime: number;
+  updateTime: number;
+}
+
+/**
+ * Paginated history of closed positions. MEXC caps page_size at 100.
+ * Pass `pages` to fetch multiple pages (default 5 = up to 500 positions).
+ */
+export async function getHistoryPositions(opts: {
+  symbol?: string;
+  pageSize?: number;
+  pages?: number;
+} = {}): Promise<MexcHistoryPosition[]> {
+  const pageSize = opts.pageSize ?? 100;
+  const maxPages = opts.pages ?? 5;
+  const all: MexcHistoryPosition[] = [];
+  for (let page = 1; page <= maxPages; page++) {
+    const qs = `${opts.symbol ? `symbol=${opts.symbol}&` : ""}page_num=${page}&page_size=${pageSize}`;
+    const url = `${BASE}/api/v1/private/position/list/history_positions?${qs}`;
+    const resp = await fetchJson<MexcSignedResp<{ resultList?: MexcHistoryPosition[] } | MexcHistoryPosition[]>>(
+      url,
+      { headers: signedHeaders(qs) },
+    );
+    if (!resp.success) throw new Error(`MEXC: ${resp.message ?? "history call failed"} (code ${resp.code})`);
+    const list = Array.isArray(resp.data) ? resp.data : resp.data?.resultList ?? [];
+    if (list.length === 0) break;
+    all.push(...list);
+    if (list.length < pageSize) break;
+  }
+  return all;
+}

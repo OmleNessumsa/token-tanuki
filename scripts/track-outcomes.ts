@@ -79,7 +79,10 @@ async function main(): Promise<void> {
       const ageHours = (Date.now() - rec.ts) / 3_600_000;
       if (ageHours < 24) continue;     // need at least 1 daily bar after signal
       const allCandles = await getFuturesKlines(rec.symbol, "Day1", 30);
-      const since = allCandles.filter((c) => c.t > rec.ts);
+      // MEXC kline `t` is unix seconds; signal `ts` is unix ms. Normalize to ms.
+      const since = allCandles
+        .map((c) => ({ ...c, t: c.t * 1000 }))
+        .filter((c) => c.t > rec.ts);
       if (since.length === 0) continue;
       const outcome = computeOutcome(rec, since);
       if (outcome) {
