@@ -2,7 +2,8 @@ node_modules/
 dist/
 coverage/
 .env
-.env.local
+.env.*
+!.env.example
 *.log
 .DS_Store
 .vitest-cache/
@@ -10,3 +11,8 @@ docs/source/text/
 docs/source/*.pdf
 docs/source/*.epub
 docs/source/*.zip
+
+# Private deployment notes — never commit (contains infra IPs, chat IDs, etc.)
+docs/SESSION_STATE.md
+docs/DEPLOYMENT_PRIVATE.md
+*.secrets.md

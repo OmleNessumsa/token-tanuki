@@ -38,7 +38,7 @@ Trade Card @ 20× leverage · $10000 account · 1% risk
    ```
    cryptotrader <0x... or solana-address>
    ```
-3. **Telegram bot** — `@your_bot`. `/start /positions /scan /top` plus plain ticker text. Inline keyboards. Single-message digests sorted by urgency.
+3. **Telegram bot** — your own bot via BotFather. `/start /positions /scan /top` plus plain ticker text. Inline keyboards. Single-message digests sorted by urgency.
 
 ## Futures engine
 
@@ -72,7 +72,7 @@ Takes a single ETH or Solana address and outputs `BUY` / `WAIT` / `AVOID`:
 
 ## Production deployment
 
-Runs 24/7 on a Hetzner Cloud VPS:
+Runs 24/7 on any VPS (Linux + systemd):
 
 | Service | Type | Cadence |
 |---|---|---|

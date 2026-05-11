@@ -3,8 +3,8 @@
  * tenant's signals.jsonl. Reads $CRYPTOTRADER_STATE_DIR.
  *
  * Usage:
- *   CRYPTOTRADER_STATE_DIR=/root/.cryptotrader-roy   npx tsx scripts/signal-stats.ts
- *   CRYPTOTRADER_STATE_DIR=/root/.cryptotrader-claude npx tsx scripts/signal-stats.ts
+ *   CRYPTOTRADER_STATE_DIR=~/.cryptotrader-roy   npx tsx scripts/signal-stats.ts
+ *   CRYPTOTRADER_STATE_DIR=~/.cryptotrader-claude npx tsx scripts/signal-stats.ts
  *   npx tsx scripts/signal-stats.ts --since 2026-05-08 --risk-usd 36
  *
  * `--risk-usd` (default 36): dollar amount risked per signal at 1R. Matches
