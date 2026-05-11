@@ -10,7 +10,7 @@
  *  - No native 4h granularity → adapter aggregates from 1h candles
  */
 
-import type { ExchangeAdapter, Ticker, Timeframe } from "../exchange.js";
+import type { Balance, ExchangeAdapter, Ticker, Timeframe } from "../exchange.js";
 import {
   aggregateCandles,
   findCanonicalSpot,
@@ -19,6 +19,7 @@ import {
   productExists,
   type CoinbaseGranularity,
 } from "./coinbase.js";
+import { getAccounts } from "./coinbase-private.js";
 
 interface TfMapEntry {
   granularity: CoinbaseGranularity;
@@ -82,4 +83,13 @@ export const coinbaseSpotAdapter: ExchangeAdapter = {
   symbolExists: productExists,
 
   findCanonicalSymbol: findCanonicalSpot,
+
+  async getBalances(): Promise<Balance[]> {
+    const accounts = await getAccounts();
+    return accounts.map((a) => ({
+      asset: a.currency,
+      free: Number(a.available_balance?.value ?? 0),
+      locked: Number(a.hold?.value ?? 0),
+    }));
+  },
 };

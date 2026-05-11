@@ -28,11 +28,14 @@ describe("coinbaseSpotAdapter", () => {
     expect(adapter.getFundingRate).toBeUndefined();
   });
 
-  it("omits private/order methods (added in S2b/S4)", () => {
+  it("exposes getBalances (S2b)", () => {
+    expect(typeof adapter.getBalances).toBe("function");
+  });
+
+  it("omits order methods (added in S4 behind safety rails)", () => {
     expect(adapter.placeOrder).toBeUndefined();
     expect(adapter.cancelOrder).toBeUndefined();
     expect(adapter.getOpenOrders).toBeUndefined();
-    expect(adapter.getBalances).toBeUndefined();
   });
 });
 

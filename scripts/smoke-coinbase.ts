@@ -37,6 +37,27 @@ async function main() {
   for (const a of ["ETH", "SOL", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT"]) {
     console.log(`  ${a} → ${await cb.findCanonicalSymbol(a)}`);
   }
+
+  console.log("\n=== getBalances() — AUTH TEST ===");
+  if (!cb.getBalances) {
+    console.log("adapter.getBalances not defined");
+    return;
+  }
+  try {
+    const balances = await cb.getBalances();
+    console.log(`✓ Auth OK — ${balances.length} accounts returned`);
+    const nonZero = balances.filter((b) => b.free > 0 || b.locked > 0);
+    if (nonZero.length === 0) {
+      console.log("  (no non-zero balances — fresh / empty account)");
+    } else {
+      console.log("  Non-zero balances:");
+      for (const b of nonZero) {
+        console.log(`    ${b.asset.padEnd(8)} free=${b.free}  locked=${b.locked}`);
+      }
+    }
+  } catch (e: unknown) {
+    console.log("✗ Auth FAILED:", e instanceof Error ? e.message : String(e));
+  }
 }
 
 main().catch((e) => {
