@@ -1,0 +1,41 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cryptotrader.scan-coinbase</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>__PROJECT_DIR__/scripts/launchd/run-scan-coinbase.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>__PROJECT_DIR__</string>
+
+  <!-- Run every 30 minutes; first fire happens at load -->
+  <key>StartInterval</key>
+  <integer>1800</integer>
+
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>ThrottleInterval</key>
+  <integer>30</integer>
+
+  <key>StandardOutPath</key>
+  <string>__HOME__/Library/Logs/cryptotrader-elmo/scan.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>__HOME__/Library/Logs/cryptotrader-elmo/scan.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+    <key>CRYPTOTRADER_STATE_DIR</key>
+    <string>__HOME__/.cryptotrader-elmo</string>
+  </dict>
+</dict>
+</plist>
