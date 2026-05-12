@@ -125,7 +125,7 @@ function formatPlan(a: FuturesAnalysis, plan: TradePlan | null, args: CliArgs): 
     return lines.join("\n");
   }
 
-  const isSpot = plan.positionSizing.leverageUsed <= 1;
+  const isSpot = plan.mode === "spot";
   const modeLabel = isSpot ? "Trade Card · spot" : `Trade Card @ ${plan.positionSizing.leverageUsed}× leverage`;
   lines.push(pc.bold(`${modeLabel} · $${args.account.toFixed(0)} account · ${args.risk}% risk`));
   lines.push("─".repeat(60));
@@ -207,6 +207,7 @@ async function main(): Promise<void> {
       accountUsd: args.account,
       leverage: args.leverage,
       riskPctPerTrade: args.risk,
+      mode: adapter.kind === "spot" ? "spot" : "futures",
     });
 
     if (args.json) {

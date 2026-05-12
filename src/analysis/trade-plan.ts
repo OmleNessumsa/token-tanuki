@@ -22,18 +22,22 @@ import type { Candle } from "./indicators.js";
 import { atr, swings } from "./indicators.js";
 import { sizeByPctRisk } from "./sizing.js";
 
+export type TradePlanMode = "futures" | "spot";
+
 export interface TradePlan {
+  mode: TradePlanMode;
   side: "LONG" | "SHORT";
   /** Entry zone — limit-order range, not market price */
   entry: { ideal: number; max: number };
   stop: { price: number; distancePct: number; method: "structure" | "atr" | "liq-cap" };
+  /** Spot plans set this to a sentinel ({ price: 0, bufferPct: 100, usable: true }). */
   liquidation: { price: number; bufferPct: number; usable: boolean };
   targets: Array<{ price: number; rr: number; rationale: string }>;
   positionSizing: {
     notionalUsd: number;       // total position notional (margin × leverage)
-    marginUsd: number;          // your actual at-risk margin
+    marginUsd: number;          // your actual at-risk margin (= notional on spot)
     units: number;              // base asset units
-    leverageUsed: number;       // may be lower than requested if stop is too tight
+    leverageUsed: number;       // 1 on spot
     accountRiskPct: number;     // % of account at 1R
     accountRiskUsd: number;
   };
@@ -43,19 +47,24 @@ export interface TradePlan {
 
 export interface TradePlanInput {
   analysis: FuturesAnalysis;
-  /** User's account size in USD. */
+  /** User's account size in USD (or USDC for spot Coinbase). */
   accountUsd: number;
-  /** Requested leverage (e.g. 20). Plan may reduce if stop forces it. */
+  /** Requested leverage (e.g. 20). Ignored when mode='spot' (forced to 1). */
   leverage: number;
-  /** Tharp % risk per trade. Default 1%. For 20× be conservative — 0.5% recommended. */
+  /** "futures" (default) honors leverage and liquidation. "spot" forces lev=1, no liq, position-cap capped at spotMaxPositionPctOfEquity. */
+  mode?: TradePlanMode;
+  /** Tharp % risk per trade. Default 1%. For 20× futures be conservative — 0.5% recommended. */
   riskPctPerTrade?: number;
-  /** Fee buffer subtracted from theoretical liquidation — typical MEXC taker = 0.04%, plus 1× cycle funding ≈ 0.5% buffer total. */
+  /** Fee buffer subtracted from theoretical liquidation. Futures-only. */
   liqFeeBufferPct?: number;
+  /** Spot-mode cap on notional as % of equity. Default 25 (no all-in trades). */
+  spotMaxPositionPctOfEquity?: number;
 }
 
 const DEFAULTS = {
   riskPctPerTrade: 1,
   liqFeeBufferPct: 0.5,
+  spotMaxPositionPctOfEquity: 25,
 };
 
 /**
@@ -87,14 +96,17 @@ function pctDistance(from: number, to: number): number {
 
 export function generateTradePlan(input: TradePlanInput): TradePlan | null {
   const { analysis, accountUsd } = input;
-  const requestedLeverage = input.leverage;
+  const mode: TradePlanMode = input.mode ?? "futures";
+  const requestedLeverage = mode === "spot" ? 1 : input.leverage;
   const riskPct = input.riskPctPerTrade ?? DEFAULTS.riskPctPerTrade;
   const feeBuffer = input.liqFeeBufferPct ?? DEFAULTS.liqFeeBufferPct;
+  const spotPosCapPct = input.spotMaxPositionPctOfEquity ?? DEFAULTS.spotMaxPositionPctOfEquity;
   const warnings: string[] = [];
   const invalidation: string[] = [];
 
   if (!analysis.ticker || !analysis.perpSymbol) return null;
   if (analysis.verdict.side === "FLAT") return null;
+  if (mode === "spot" && analysis.verdict.side === "SHORT") return null;
 
   const side = analysis.verdict.side;
   const currentPrice = analysis.ticker.lastPrice;
@@ -129,11 +141,11 @@ export function generateTradePlan(input: TradePlanInput): TradePlan | null {
   }
   let stopDistancePct = pctDistance(currentPrice, stopPrice);
 
-  // Liquidation budget check
+  // Liquidation budget check (futures-only — spot has no liquidation)
   let leverage = requestedLeverage;
   let liqBufferPct = liquidationBufferPct(leverage, feeBuffer);
 
-  if (stopDistancePct >= liqBufferPct) {
+  if (mode === "futures" && stopDistancePct >= liqBufferPct) {
     // Stop won't fit. Either use a tighter (liq-cap) stop, or reduce leverage.
     // Strategy: cap stop at 80% of liq buffer (so we don't ride to liquidation)
     const safeStopDistPct = liqBufferPct * 0.8;
@@ -158,26 +170,45 @@ export function generateTradePlan(input: TradePlanInput): TradePlan | null {
     }
   }
 
-  // Compute liquidation price at chosen leverage
+  // Compute liquidation price at chosen leverage. Spot has no liquidation —
+  // emit a sentinel so consumers can detect (and so the CLI can skip the row).
   const liqDistance = liqBufferPct;
-  const liqPrice = isLong
-    ? currentPrice * (1 - liqDistance / 100)
-    : currentPrice * (1 + liqDistance / 100);
+  const liqPrice = mode === "spot"
+    ? 0
+    : isLong
+      ? currentPrice * (1 - liqDistance / 100)
+      : currentPrice * (1 + liqDistance / 100);
 
-  // Position sizing: Tharp % risk, with leverage applied to compute notional vs margin
-  // Account risk: $X = accountUsd × riskPct/100
-  // Per-unit risk = stop distance × entry
-  // Units = accountRisk / per-unit risk
+  // Position cap: futures uses leverage as multiplier; spot caps a single trade
+  // at spotMaxPositionPctOfEquity (default 25% — no all-in trades) since 100%
+  // would force minute-stop trades to under-risk silently.
+  const maxPositionPctOfEquity = mode === "spot" ? spotPosCapPct : leverage * 100;
+
   const sizing = sizeByPctRisk({
     equityUsd: accountUsd,
     entryPrice: currentPrice,
     stopPrice,
     riskPctOfEquity: riskPct,
-    maxPositionPctOfEquity: leverage * 100, // notional cap = leverage × equity
+    maxPositionPctOfEquity,
   });
   const units = sizing.positionUnits;
   const notional = units * currentPrice;
-  const marginRequired = notional / leverage;
+  const marginRequired = mode === "spot" ? notional : notional / leverage;
+
+  if (mode === "spot") {
+    const cappedNotional = (spotPosCapPct / 100) * accountUsd;
+    if (notional >= cappedNotional - 0.01 && notional > 0) {
+      const wouldHaveRisked = (accountUsd * riskPct) / 100;
+      const actuallyRisks = notional * (stopDistancePct / 100);
+      if (actuallyRisks < wouldHaveRisked - 0.01) {
+        warnings.push(
+          `Position-cap (${spotPosCapPct}% of equity) bound — actual risk ` +
+            `${actuallyRisks.toFixed(2)} < requested 1R risk ${wouldHaveRisked.toFixed(2)}. ` +
+            `Stop is tighter than the cap permits full risk; raise spotMaxPositionPctOfEquity to allow full risk.`,
+        );
+      }
+    }
+  }
 
   // Targets: prior swing high(s) for longs / lows for shorts on 4h, plus measured move from chart pattern if any
   const targets: TradePlan["targets"] = [];
@@ -241,10 +272,14 @@ export function generateTradePlan(input: TradePlanInput): TradePlan | null {
   const entryMax = isLong ? currentPrice * 1.005 : currentPrice * 0.995;
 
   return {
+    mode,
     side,
     entry: { ideal: entryIdeal, max: entryMax },
     stop: { price: stopPrice, distancePct: stopDistancePct, method: stopMethod },
-    liquidation: { price: liqPrice, bufferPct: liqBufferPct, usable: stopDistancePct < liqBufferPct },
+    liquidation:
+      mode === "spot"
+        ? { price: 0, bufferPct: 100, usable: true }
+        : { price: liqPrice, bufferPct: liqBufferPct, usable: stopDistancePct < liqBufferPct },
     targets,
     positionSizing: {
       notionalUsd: notional,
