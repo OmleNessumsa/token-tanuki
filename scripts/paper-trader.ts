@@ -197,10 +197,17 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
   const signals = readSignals();
   // Require at minimum: stop + TP1. TP2/TP3 are nice-to-have; we synthesize
   // them via 1×R progression if the trade plan didn't produce them.
-  const newOnes = signals.filter((s) =>
-    s.fired && s.side === "LONG" && s.stopPrice !== null && s.tp1Price !== null &&
-    !p.alreadyTradedSignalIds.includes(s.id),
-  );
+  const newOnes = signals.filter((s) => {
+    if (!s.fired || s.side !== "LONG") return false;
+    if (s.stopPrice === null || s.tp1Price === null) return false;
+    if (p.alreadyTradedSignalIds.includes(s.id)) return false;
+    // Defensive: a LONG stop must be strictly below entry, TP1 strictly
+    // above. Reject malformed signals so a bad scan doesn't cascade through
+    // the state machine and force-fire all TPs in one tick.
+    if (s.stopPrice >= s.entryPrice) return false;
+    if (s.tp1Price <= s.entryPrice) return false;
+    return true;
+  });
   for (const sig of newOnes) {
     const stop = sig.stopPrice!;
     const oneR = sig.entryPrice - stop;

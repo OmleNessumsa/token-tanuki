@@ -164,3 +164,33 @@ describe("generateTradePlan (spot mode)", () => {
     expect(plan!.liquidation.price).toBeGreaterThan(0);
   });
 });
+
+describe("generateTradePlan — stop side validation (regression for LINK-USDC bug)", () => {
+  it("never returns a LONG plan with stop above entry", () => {
+    // Bug from real scan 2026-05-12: LINK-USDC fired with entry=10.402,
+    // stop=10.411. lastSwingLow returned a stale high price (price had
+    // dropped through it without forming a new low). The plan picked it
+    // as "tighter" via absolute distance comparison.
+    const plan = generateTradePlan({
+      analysis: stubAnalysis({ side: "LONG", price: 80_000 }),
+      accountUsd: 1000,
+      leverage: 1,
+      mode: "spot",
+    });
+    if (plan) {
+      expect(plan.stop.price).toBeLessThan(plan.entry.ideal);
+    }
+  });
+
+  it("never returns a LONG plan where TP1 is at or below entry", () => {
+    const plan = generateTradePlan({
+      analysis: stubAnalysis({ side: "LONG", price: 80_000 }),
+      accountUsd: 1000,
+      leverage: 1,
+      mode: "spot",
+    });
+    if (plan && plan.targets.length > 0) {
+      expect(plan.targets[0]!.price).toBeGreaterThan(plan.entry.ideal);
+    }
+  });
+});

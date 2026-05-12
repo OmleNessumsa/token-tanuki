@@ -122,6 +122,14 @@ export function generateTradePlan(input: TradePlanInput): TradePlan | null {
     ? lastSwingLow(ltfTf.candles, 3)
     : lastSwingHigh(ltfTf.candles, 3);
 
+  // Validate structure stop is on the correct side. lastSwingLow can return
+  // a price ABOVE current if price has dropped through a prior swing without
+  // forming a new lower-low — in that case the swing low is stale and unusable
+  // as a long stop. Same in reverse for short. Discard if on the wrong side.
+  const validStructure =
+    structurePrice !== null &&
+    (isLong ? structurePrice < currentPrice : structurePrice > currentPrice);
+
   // ATR stop fallback
   const atrSeries = atr(ltfTf.candles, 14);
   const lastAtr = atrSeries[atrSeries.length - 1] ?? 0;
@@ -129,16 +137,22 @@ export function generateTradePlan(input: TradePlanInput): TradePlan | null {
     ? currentPrice - 2 * lastAtr
     : currentPrice + 2 * lastAtr;
 
-  // Pick the tighter (closer to entry) of the two
+  // Pick the tighter (closer to entry) of the two — but only if structure passes the side check.
   let stopPrice: number;
   let stopMethod: "structure" | "atr" | "liq-cap";
-  if (structurePrice !== null && pctDistance(currentPrice, structurePrice) < pctDistance(currentPrice, atrStopPrice)) {
-    stopPrice = structurePrice;
+  if (validStructure && pctDistance(currentPrice, structurePrice!) < pctDistance(currentPrice, atrStopPrice)) {
+    stopPrice = structurePrice!;
     stopMethod = "structure";
   } else {
     stopPrice = atrStopPrice;
     stopMethod = "atr";
   }
+
+  // Belt-and-braces: a degenerate ATR (≤0) or other math edge case could leave
+  // stopPrice on the wrong side of entry. Refuse to produce a plan in that case.
+  if (isLong && stopPrice >= currentPrice) return null;
+  if (!isLong && stopPrice <= currentPrice) return null;
+
   let stopDistancePct = pctDistance(currentPrice, stopPrice);
 
   // Liquidation budget check (futures-only — spot has no liquidation)
