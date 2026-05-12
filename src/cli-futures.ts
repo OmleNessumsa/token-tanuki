@@ -12,6 +12,16 @@
 import pc from "picocolors";
 import { analyzeFutures, type FuturesAnalysis } from "./analyze-futures.js";
 import { generateTradePlan, type TradePlan } from "./analysis/trade-plan.js";
+import type { ExchangeAdapter } from "./exchange.js";
+import { mexcFuturesAdapter } from "./clients/mexc-adapter.js";
+import { coinbaseSpotAdapter } from "./clients/coinbase-adapter.js";
+
+type ExchangeChoice = "mexc" | "coinbase";
+
+const ADAPTERS: Record<ExchangeChoice, ExchangeAdapter> = {
+  mexc: mexcFuturesAdapter,
+  coinbase: coinbaseSpotAdapter,
+};
 
 interface CliArgs {
   asset: string;
@@ -19,6 +29,7 @@ interface CliArgs {
   account: number;
   risk: number;
   json: boolean;
+  exchange: ExchangeChoice;
 }
 
 function parseArgs(argv: readonly string[]): CliArgs | null {
@@ -38,12 +49,19 @@ function parseArgs(argv: readonly string[]): CliArgs | null {
     }
   }
   if (!asset) return null;
+  const exchangeRaw = typeof args.exchange === "string" ? args.exchange.toLowerCase() : "mexc";
+  const exchange: ExchangeChoice = exchangeRaw === "coinbase" ? "coinbase" : "mexc";
+  // Spot adapters don't support leverage — force to 1 if user passed something else.
+  const adapter = ADAPTERS[exchange];
+  const defaultLev = adapter.supportsLeverage ? 20 : 1;
+  const requestedLev = typeof args.leverage === "string" ? parseFloat(args.leverage) : defaultLev;
   return {
     asset,
-    leverage: typeof args.leverage === "string" ? parseFloat(args.leverage) : 20,
+    leverage: adapter.supportsLeverage ? requestedLev : 1,
     account: typeof args.account === "string" ? parseFloat(args.account) : 10000,
     risk: typeof args.risk === "string" ? parseFloat(args.risk) : 1,
     json: args.json === true,
+    exchange,
   };
 }
 
@@ -82,7 +100,11 @@ function formatPlan(a: FuturesAnalysis, plan: TradePlan | null, args: CliArgs): 
   if (a.ticker) {
     const ch = a.ticker.riseFallRate * 100;
     const chColor = ch >= 0 ? pc.green : pc.red;
-    lines.push(`  Last: $${fmtPx(a.ticker.lastPrice)} · 24h ${chColor(`${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%`)} · OI ${a.ticker.holdVol.toLocaleString()} contracts`);
+    const oiPart =
+      a.ticker.openInterest !== undefined
+        ? ` · OI ${a.ticker.openInterest.toLocaleString()} contracts`
+        : "";
+    lines.push(`  Last: $${fmtPx(a.ticker.lastPrice)} · 24h ${chColor(`${ch >= 0 ? "+" : ""}${ch.toFixed(2)}%`)}${oiPart}`);
   }
   if (a.funding) lines.push(`  ${a.funding.description}`);
   if (a.intermarket.regime !== "neutral" && a.intermarket.regime !== "unknown") lines.push(`  ${pc.dim(`Intermarket: ${a.intermarket.description}`)}`);
@@ -103,12 +125,16 @@ function formatPlan(a: FuturesAnalysis, plan: TradePlan | null, args: CliArgs): 
     return lines.join("\n");
   }
 
-  lines.push(pc.bold(`Trade Card @ ${plan.positionSizing.leverageUsed}× leverage · $${args.account.toFixed(0)} account · ${args.risk}% risk`));
+  const isSpot = plan.positionSizing.leverageUsed <= 1;
+  const modeLabel = isSpot ? "Trade Card · spot" : `Trade Card @ ${plan.positionSizing.leverageUsed}× leverage`;
+  lines.push(pc.bold(`${modeLabel} · $${args.account.toFixed(0)} account · ${args.risk}% risk`));
   lines.push("─".repeat(60));
   lines.push(`  ${pc.bold("Entry:")}      $${fmtPx(plan.entry.ideal)} (max $${fmtPx(plan.entry.max)})`);
   const stopColor = plan.stop.method === "liq-cap" ? pc.yellow : pc.dim;
   lines.push(`  ${pc.bold("Stop:")}       $${fmtPx(plan.stop.price)}  ${stopColor(`(${plan.stop.distancePct.toFixed(2)}% ${plan.side === "LONG" ? "below" : "above"}, ${plan.stop.method})`)}`);
-  lines.push(`  ${pc.bold("Liq:")}        $${fmtPx(plan.liquidation.price)}  ${pc.dim(`(${plan.liquidation.bufferPct.toFixed(2)}% buffer)`)}`);
+  if (!isSpot) {
+    lines.push(`  ${pc.bold("Liq:")}        $${fmtPx(plan.liquidation.price)}  ${pc.dim(`(${plan.liquidation.bufferPct.toFixed(2)}% buffer)`)}`);
+  }
   lines.push(`  ${pc.bold("Targets:")}`);
   const tpClosePct = [50, 30, 20];
   for (let i = 0; i < Math.min(3, plan.targets.length); i++) {
@@ -118,7 +144,11 @@ function formatPlan(a: FuturesAnalysis, plan: TradePlan | null, args: CliArgs): 
   }
   lines.push("");
   lines.push(`  ${pc.bold("Position:")}   ${plan.positionSizing.units.toFixed(4)} ${a.asset} = ${fmtUsd(plan.positionSizing.notionalUsd)} notional`);
-  lines.push(`  ${pc.bold("Margin:")}     ${fmtUsd(plan.positionSizing.marginUsd)} · 1R risk = ${fmtUsd(plan.positionSizing.accountRiskUsd)}`);
+  if (isSpot) {
+    lines.push(`  ${pc.bold("Capital:")}    ${fmtUsd(plan.positionSizing.notionalUsd)} · 1R risk = ${fmtUsd(plan.positionSizing.accountRiskUsd)}`);
+  } else {
+    lines.push(`  ${pc.bold("Margin:")}     ${fmtUsd(plan.positionSizing.marginUsd)} · 1R risk = ${fmtUsd(plan.positionSizing.accountRiskUsd)}`);
+  }
 
   if (plan.warnings.length > 0) {
     lines.push("");
@@ -140,20 +170,21 @@ function formatPlan(a: FuturesAnalysis, plan: TradePlan | null, args: CliArgs): 
 }
 
 function printHelp(): void {
-  process.stdout.write(`cryptotrader futures — multi-timeframe leveraged trade plan generator.
+  process.stdout.write(`cryptotrader futures — multi-timeframe trade plan generator.
 
 Usage:
-  cryptotrader futures <ASSET> [--leverage N] [--account USD] [--risk PCT] [--json]
+  cryptotrader futures <ASSET> [--exchange mexc|coinbase] [--leverage N] [--account USD] [--risk PCT] [--json]
 
 Examples:
-  cryptotrader futures BCH
+  cryptotrader futures BCH                              # MEXC perps, 20× leverage
+  cryptotrader futures BTC --exchange coinbase          # Coinbase spot, no leverage
   cryptotrader futures TON --leverage 20 --account 10000
   cryptotrader futures BTC --leverage 10 --account 5000 --risk 0.5
 
-Defaults: leverage=20, account=$10000, risk=1% per trade.
+Defaults: exchange=mexc, leverage=20 (1 on spot), account=$10000, risk=1% per trade.
 
-Output: trade card with multi-timeframe analysis (5m/15m/1h/4h/1d), MEXC perp data,
-funding rate context, BTC intermarket regime, and a leverage-aware entry/stop/target/size plan.
+Output: trade card with multi-timeframe analysis (5m/15m/1h/4h/1d). Funding/OI shown
+only on futures adapters. SHORT signals are suppressed on spot adapters.
 `);
 }
 
@@ -169,7 +200,8 @@ async function main(): Promise<void> {
   if (!args) { printHelp(); process.exit(1); }
 
   try {
-    const a = await analyzeFutures(args.asset);
+    const adapter = ADAPTERS[args.exchange];
+    const a = await analyzeFutures(args.asset, adapter);
     const plan = generateTradePlan({
       analysis: a,
       accountUsd: args.account,

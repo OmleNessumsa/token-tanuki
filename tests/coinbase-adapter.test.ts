@@ -87,9 +87,9 @@ describe("whitelist", () => {
     expect(COINBASE_TOP10_ASSETS).toHaveLength(COINBASE_TOP10_SPOT.length);
   });
 
-  it("every pair ends in -USD or -USDC", () => {
+  it("every pair quotes in USDC (EU consumer accounts can't hold USD)", () => {
     for (const sym of COINBASE_TOP10_SPOT) {
-      expect(sym).toMatch(/-(USD|USDC)$/);
+      expect(sym).toMatch(/-USDC$/);
     }
   });
 });

@@ -1,70 +1,63 @@
 /**
- * Multi-timeframe futures analysis (Phase 2 of futures pipeline).
+ * Multi-timeframe analysis (Phase 2 of the pipeline).
  *
  * For 20× leveraged trading, single-timeframe analysis is dangerous:
  *   - Lower timeframes (5m / 15m) trigger entries
  *   - Higher timeframes (4h / 1d) define the regime ("am I trading WITH or AGAINST trend?")
  *   - Confluence across timeframes is what separates real setups from noise
  *
- * This module fetches MEXC perp data across 5 timeframes, runs scoreChart() on each,
- * and computes a confluence verdict. Plus integrates funding-rate context.
+ * Exchange-agnostic via the ExchangeAdapter interface — pass a futures
+ * adapter (MEXC) or a spot adapter (Coinbase). Funding-rate analysis is
+ * automatically skipped on spot adapters; Stage 2 daily SMA-150 gate still
+ * applies because it's price-derived.
  */
 
-import {
-  findCanonicalPerp,
-  getFuturesKlines,
-  getFuturesTicker,
-  getFundingRate,
-  analyzeFundingRate,
-  type FundingAnalysis,
-  type FuturesTicker,
-  type FuturesInterval,
-} from "./clients/mexc-futures.js";
+import { analyzeFundingRate, type FundingAnalysis } from "./clients/mexc-futures.js";
+import { mexcFuturesAdapter } from "./clients/mexc-adapter.js";
+import type { ExchangeAdapter, Ticker, Timeframe } from "./exchange.js";
 import { scoreChart, type ChartScore } from "./analysis/chart.js";
 import { getIntermarketContext, type IntermarketContext } from "./analysis/intermarket.js";
 import { trendTemplate, type TrendTemplateResult } from "./analysis/trend-template.js";
 import type { Candle } from "./analysis/indicators.js";
 
-export type Timeframe = "5m" | "15m" | "1h" | "4h" | "1d";
+export type { Timeframe };
 
-const TF_TO_MEXC: Record<Timeframe, FuturesInterval> = {
-  "5m":  "Min5",
-  "15m": "Min15",
-  "1h":  "Min60",
-  "4h":  "Hour4",
-  "1d":  "Day1",
-};
+const TF_LIST: readonly Timeframe[] = ["5m", "15m", "1h", "4h", "1d"] as const;
 
 const TF_LIMIT: Record<Timeframe, number> = {
+  "1m":  500,
   "5m":  500,   // ~42 hours
   "15m": 500,   // ~5 days
+  "30m": 500,
   "1h":  500,   // ~21 days
   "4h":  500,   // ~83 days
+  "8h":  500,
   "1d":  500,   // ~16 months
+  "1w":  100,
 };
 
 export interface TfAnalysis {
   timeframe: Timeframe;
   candles: Candle[];
   chart: ChartScore;
-  /** Convenient direction summary: "bullish" | "bearish" | "neutral". */
   direction: "bullish" | "bearish" | "neutral";
 }
 
 export interface FuturesAnalysis {
   asset: string;
+  exchangeId: string;
+  /** Resolved symbol on the chosen exchange (e.g. "BTC_USDT" on MEXC, "BTC-USDC" on Coinbase). */
   perpSymbol: string | null;
-  ticker: FuturesTicker | null;
+  ticker: Ticker | null;
   funding: FundingAnalysis | null;
   intermarket: IntermarketContext;
-  trendTemplate: TrendTemplateResult | null;  // Minervini SEPA — Stage 2 check on daily candles
+  trendTemplate: TrendTemplateResult | null;
   timeframes: TfAnalysis[];
-  /** "with-trend" if HTF (4h+1d) and LTF (15m+1h) agree on direction. */
   confluence: {
     htfDirection: "bullish" | "bearish" | "neutral";
     ltfDirection: "bullish" | "bearish" | "neutral";
     aligned: boolean;
-    score: number;        // 0..100 — composite quality of setup
+    score: number;
     summary: string;
   };
   verdict: {
@@ -73,17 +66,10 @@ export interface FuturesAnalysis {
     reasons: string[];
     caveats: string[];
   };
-  /** Side BEFORE the Stage 2 gate. Used for shadow logging during forward test. */
   naturalSide: "LONG" | "SHORT" | "FLAT";
-  /** Daily-chart Stage 2 status (close > 150d SMA). Backtest-validated LONG gate. */
   stage2: boolean | null;
 }
 
-/**
- * Read a single chart's directional bias.
- * Same logic as the established-asset path in analysis/verdict.ts but exposed standalone here.
- */
-/** Single-char glyph for compact MTF lines. ▲ bull · ▼ bear · = neutral. */
 function dirGlyph(d: "bullish" | "bearish" | "neutral"): string {
   return d === "bullish" ? "▲" : d === "bearish" ? "▼" : "=";
 }
@@ -103,10 +89,6 @@ function chartDirection(chart: ChartScore): "bullish" | "bearish" | "neutral" {
   return "neutral";
 }
 
-/**
- * Aggregate direction across multiple timeframes.
- * Counts bullish vs bearish; majority wins, ties → neutral.
- */
 function aggregateDirection(tfs: TfAnalysis[]): "bullish" | "bearish" | "neutral" {
   let bull = 0, bear = 0;
   for (const t of tfs) {
@@ -118,46 +100,58 @@ function aggregateDirection(tfs: TfAnalysis[]): "bullish" | "bearish" | "neutral
   return "neutral";
 }
 
-export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
+export async function analyzeFutures(
+  asset: string,
+  adapter: ExchangeAdapter = mexcFuturesAdapter,
+): Promise<FuturesAnalysis> {
   const upper = asset.toUpperCase();
-  const perpSymbol = await findCanonicalPerp(upper);
+  const perpSymbol = await adapter.findCanonicalSymbol(upper);
   const intermarket = await getIntermarketContext();
 
   if (!perpSymbol) {
     return {
       asset: upper,
+      exchangeId: adapter.id,
       perpSymbol: null,
       ticker: null,
       funding: null,
       intermarket,
       timeframes: [],
       trendTemplate: null,
-      confluence: { htfDirection: "neutral", ltfDirection: "neutral", aligned: false, score: 0, summary: "no perp listed" },
-      verdict: { side: "FLAT", confidence: "low", reasons: [`${upper} has no MEXC futures listing`], caveats: [] },
+      confluence: { htfDirection: "neutral", ltfDirection: "neutral", aligned: false, score: 0, summary: "no symbol listed" },
+      verdict: { side: "FLAT", confidence: "low", reasons: [`${upper} not listed on ${adapter.id}`], caveats: [] },
       naturalSide: "FLAT",
       stage2: null,
     };
   }
 
-  // Fetch all timeframes in parallel + ticker + funding
-  const tfList: Timeframe[] = ["5m", "15m", "1h", "4h", "1d"];
-  const [klinesAll, ticker, fundInfo] = await Promise.all([
-    Promise.all(tfList.map((tf) => getFuturesKlines(perpSymbol, TF_TO_MEXC[tf], TF_LIMIT[tf]))),
-    getFuturesTicker(perpSymbol),
-    getFundingRate(perpSymbol),
+  const fundingPromise = adapter.getFundingRate
+    ? adapter.getFundingRate(perpSymbol)
+    : Promise.resolve(null);
+  const [klinesAll, ticker, fInfo] = await Promise.all([
+    Promise.all(TF_LIST.map((tf) => adapter.getKlines(perpSymbol, tf, TF_LIMIT[tf]))),
+    adapter.getTicker(perpSymbol),
+    fundingPromise,
   ]);
 
-  const funding = fundInfo ? analyzeFundingRate(fundInfo) : null;
+  // Adapt to the FundingRateInfo shape that analyzeFundingRate expects.
+  const funding = fInfo
+    ? analyzeFundingRate({
+        symbol: fInfo.symbol,
+        fundingRate: fInfo.ratePerCycle,
+        maxFundingRate: 0,
+        minFundingRate: 0,
+        collectCycle: fInfo.cycleHours,
+        nextSettleTime: fInfo.nextSettleTime,
+      })
+    : null;
 
-  const timeframes: TfAnalysis[] = tfList.map((tf, i) => {
+  const timeframes: TfAnalysis[] = TF_LIST.map((tf, i) => {
     const candles = klinesAll[i] ?? [];
-    // For multi-bar pattern detection scoreChart needs daily-ish series; pass current as both args
     const chart = scoreChart(candles, candles);
     return { timeframe: tf, candles, chart, direction: chartDirection(chart) };
   });
 
-  // Minervini SEPA — run trend template on daily candles
-  // Source: Minervini, "Trade Like a Stock Market Wizard" (2013)
   const dailyCandles = timeframes.find((t) => t.timeframe === "1d")?.candles ?? [];
   const tt = trendTemplate(dailyCandles);
 
@@ -167,30 +161,28 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
   const ltfDirection = aggregateDirection(ltfTfs);
   const aligned = htfDirection !== "neutral" && htfDirection === ltfDirection;
 
-  // Compose composite score: weighted average of TF chart scores, biased toward higher TF
-  const weights = { "5m": 0.05, "15m": 0.15, "1h": 0.25, "4h": 0.30, "1d": 0.25 };
+  const weights = { "5m": 0.05, "15m": 0.15, "1h": 0.25, "4h": 0.30, "1d": 0.25 } as const;
   let composite = 0;
   let totalW = 0;
   for (const t of timeframes) {
-    const w = weights[t.timeframe];
+    const w = weights[t.timeframe as keyof typeof weights] ?? 0;
     composite += t.chart.score * w;
     totalW += w;
   }
   composite = totalW > 0 ? composite / totalW : 0;
 
-  // Apply funding-rate bias to composite (modulates the long/short outlook)
   if (funding && funding.longBiasScore !== 0) {
     composite += funding.longBiasScore * (htfDirection === "bullish" ? 0.5 : -0.3);
   }
 
-  // Apply intermarket layer: BTC dump → close all longs
-  if (intermarket.regime === "btc_dump" && perpSymbol !== "BTC_USDT" && perpSymbol !== "BTC_USD") {
+  // Intermarket layer applies regardless of exchange, since BTC.D is global.
+  const isBtc = perpSymbol === "BTC_USDT" || perpSymbol === "BTC_USD" || perpSymbol === "BTC-USDC" || perpSymbol === "BTC-USD";
+  if (intermarket.regime === "btc_dump" && !isBtc) {
     composite *= 0.3;
-  } else if (intermarket.regime === "altseason" && perpSymbol !== "BTC_USDT") {
+  } else if (intermarket.regime === "altseason" && !isBtc) {
     composite *= 1.2;
   }
 
-  // Minervini SEPA: if 6+/7 criteria pass → +5 (high-conviction "Stage 2"); 4-5 → 0; <4 → -5 for longs
   if (tt.criteriaTotal > 0) {
     const ratio = tt.criteriaPassed / tt.criteriaTotal;
     if (htfDirection === "bullish") {
@@ -201,11 +193,14 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
 
   composite = Math.max(0, Math.min(100, Math.round(composite)));
 
-  // Verdict
   const reasons: string[] = [];
   const caveats: string[] = [];
 
-  reasons.push(`Perp: ${perpSymbol} @ $${ticker?.lastPrice.toFixed(4)} (24h ${(ticker?.riseFallRate ?? 0) >= 0 ? "+" : ""}${((ticker?.riseFallRate ?? 0) * 100).toFixed(2)}%)`);
+  if (ticker) {
+    const pct = ticker.riseFallRate * 100;
+    const oiPart = ticker.openInterest !== undefined ? ` · OI ${ticker.openInterest.toLocaleString()} contracts` : "";
+    reasons.push(`Symbol: ${perpSymbol} @ $${ticker.lastPrice.toFixed(4)} (24h ${pct >= 0 ? "+" : ""}${pct.toFixed(2)}%)${oiPart}`);
+  }
   reasons.push(`HTF (4h/1d): ${htfDirection} | LTF (15m/1h): ${ltfDirection} | aligned: ${aligned ? "YES" : "no"}`);
   reasons.push(`Per-TF: ${timeframes.map((t) => `${t.timeframe}=${dirGlyph(t.direction)}${Math.round(t.chart.score)}`).join(" ")}`);
   if (funding) reasons.push(`Funding: ${funding.description}`);
@@ -234,7 +229,6 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
     reasons.push("No clear directional alignment — wait for HTF to commit");
   }
 
-  // Strong funding warnings
   if (funding && funding.regime === "euphoria" && side === "LONG") {
     caveats.push("Euphoric funding — consider waiting for cooldown or reducing size");
   }
@@ -242,7 +236,13 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
     caveats.push("Shorts already crowded (paid to long) — squeeze risk");
   }
 
-  // Minervini Stage warning for LONGs
+  // Spot adapters can't short — demote any SHORT verdict to FLAT and surface why.
+  if (side === "SHORT" && !adapter.supportsShort) {
+    side = "FLAT";
+    confidence = "low";
+    caveats.push(`${adapter.id} does not support short — SHORT signal suppressed`);
+  }
+
   if (side === "LONG" && tt.criteriaTotal > 0) {
     const ratio = tt.criteriaPassed / tt.criteriaTotal;
     if (ratio < 4 / 7) {
@@ -252,10 +252,6 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
     }
   }
 
-  // Stage 2 hard gate for LONG (Aronson-validated, see docs/BACKTEST_RESULTS.md).
-  // If daily close ≤ SMA(150), demote LONG → FLAT to suppress alert. Capture
-  // the pre-gate side as `naturalSide` so the signal logger can shadow-track
-  // suppressed signals during forward test.
   const dailyTf = timeframes.find((t) => t.timeframe === "1d");
   const stage2 = dailyTf?.chart.stage2 ?? null;
   const naturalSide: "LONG" | "SHORT" | "FLAT" = side;
@@ -269,6 +265,7 @@ export async function analyzeFutures(asset: string): Promise<FuturesAnalysis> {
 
   return {
     asset: upper,
+    exchangeId: adapter.id,
     perpSymbol,
     ticker,
     funding,

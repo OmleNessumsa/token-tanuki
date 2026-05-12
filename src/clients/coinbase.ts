@@ -196,7 +196,9 @@ export async function productExists(productId: string): Promise<boolean> {
 }
 
 /**
- * Try the canonical USD spot pair first, then USDC.
+ * Try the canonical USDC spot pair first, then USD as fallback for non-EU
+ * users. Coinbase EU consumer accounts cannot hold USD fiat, so USDC pairs
+ * are the only ones actually tradable in EU.
  * Known aliases: MATIC → POL (Polygon rebrand).
  */
 const SPOT_ALIASES: Record<string, string> = {
@@ -206,10 +208,10 @@ const SPOT_ALIASES: Record<string, string> = {
 export async function findCanonicalSpot(asset: string): Promise<string | null> {
   const upper = asset.toUpperCase();
   const candidates: string[] = [];
-  candidates.push(`${upper}-USD`, `${upper}-USDC`);
+  candidates.push(`${upper}-USDC`, `${upper}-USD`);
   if (SPOT_ALIASES[upper]) {
     const aliased = SPOT_ALIASES[upper];
-    candidates.push(`${aliased}-USD`, `${aliased}-USDC`);
+    candidates.push(`${aliased}-USDC`, `${aliased}-USD`);
   }
   for (const c of candidates) {
     if (await productExists(c)) return c;
