@@ -36,14 +36,18 @@ export interface ScaleOut {
 export interface PaperPosition {
   id: string;
   signalId: string;            // ties back to signal-log entry
-  symbol: string;              // "ZEC_USDT"
+  symbol: string;              // "ZEC_USDT" (MEXC) or "BTC-USDC" (Coinbase)
   asset: string;               // "ZEC"
+  /** Exchange identifier. Missing = "mexc-futures" for back-compat. */
+  exchange?: string;
+  /** "futures" or "spot". Drives fee model + pnl math. Defaults to "futures". */
+  mode?: "futures" | "spot";
   side: "LONG";
   openTs: number;
   entryPrice: number;
-  /** Total notional at open (in USD, ~$50 per position). */
+  /** Total notional at open (in USD/USDC). */
   notionalUsd: number;
-  /** Leverage at open (default 20×). Used for PnL = move% × notional × leverage. */
+  /** Leverage at open (default 20× for MEXC, 1× for spot). PnL = move% × notional × leverage. */
   leverage: number;
   /** Original SL price as suggested by trade plan. */
   initialStop: number;
@@ -63,6 +67,8 @@ export interface PaperTrade {
   signalId: string;
   symbol: string;
   asset: string;
+  exchange?: string;
+  mode?: "futures" | "spot";
   side: "LONG";
   openTs: number;
   closedTs: number;
@@ -74,8 +80,10 @@ export interface PaperTrade {
   scaleOuts: ScaleOut[];
   /** Notional-weighted R-multiple across scale-outs. */
   totalRMultiple: number;
-  /** Sum of pnlUsd across scale-outs. */
+  /** Sum of pnlUsd across scale-outs (after fees on spot). */
   totalPnlUsd: number;
+  /** Total fees deducted across all scale-outs (USD). 0 on legacy MEXC records. */
+  totalFeesUsd?: number;
 }
 
 export interface PaperPortfolio {
@@ -124,10 +132,33 @@ export function savePortfolio(p: PaperPortfolio): void {
 /**
  * Compute realized PnL in USD for a leveraged paper position slice.
  * pnl = (exitPrice - entryPrice) / entryPrice × notional × leverage × fraction
+ *
+ * NOTE: this is GROSS pnl. Use `feesForSlice` to apportion round-trip fees
+ * and subtract them for net realized P&L on spot exchanges.
  */
 export function computeSlicePnl(entry: number, exit: number, notional: number, leverage: number, fraction: number): number {
   const movePct = (exit - entry) / entry;
   return movePct * notional * leverage * fraction;
+}
+
+/**
+ * Round-trip fee on the closed fraction. Each side (open + close) charges
+ * `takerFeePct%` of the dollar-notional traded on that side; close-side
+ * notional is approximated by `entry × fraction × notional / entry = notional × fraction`.
+ *
+ * Spot Coinbase taker is typically 0.5%/side; MEXC futures is ~0.04%/side.
+ * Pass 0 to ignore fees (e.g. backwards-compatible MEXC paper runs that
+ * never modeled fees).
+ */
+export function feesForSlice(notional: number, fraction: number, takerFeePctPerSide: number): number {
+  return (takerFeePctPerSide / 100) * notional * fraction * 2;
+}
+
+/** Default per-side taker fee % per exchange. */
+export function defaultTakerFeePct(exchange: string | undefined): number {
+  if (exchange === "coinbase-spot") return 0.5;
+  if (exchange === "mexc-futures") return 0.0; // legacy paper-trader didn't model fees
+  return 0.0;
 }
 
 /** R = realized price move / initial price risk. Side-agnostic for LONG. */

@@ -8,7 +8,9 @@
 
 import pc from "picocolors";
 import { analyzeFutures, type FuturesAnalysis } from "../src/analyze-futures.js";
+import { generateTradePlan } from "../src/analysis/trade-plan.js";
 import { coinbaseSpotAdapter } from "../src/clients/coinbase-adapter.js";
+import { appendSignal, readSignals } from "../src/signal-log.js";
 import { COINBASE_TOP10_ASSETS } from "../src/whitelist.js";
 
 function colorSide(side: string): string {
@@ -46,8 +48,16 @@ function fmtPrice(n: number | undefined): string {
 }
 
 async function main(): Promise<void> {
+  const fire = process.argv.includes("--fire");
+  const minConfidence = process.argv.includes("--high-only") ? "high" : "medium";
   const started = Date.now();
-  process.stdout.write(pc.bold("Scanning Coinbase top-10 spot — multi-TF (5m/15m/1h/4h/1d)\n\n"));
+  process.stdout.write(pc.bold("Scanning Coinbase top-10 spot — multi-TF (5m/15m/1h/4h/1d)\n"));
+  if (fire) {
+    process.stdout.write(
+      pc.dim(`Fire mode: writing ${minConfidence}+ confidence LONG signals to signal log\n`),
+    );
+  }
+  process.stdout.write("\n");
 
   // Cap concurrency so we don't burst-trip Coinbase rate limits. Each asset
   // hits 5 kline endpoints + 1 ticker + 1 funding-skip = ~7 calls. With 10
@@ -131,6 +141,70 @@ async function main(): Promise<void> {
   process.stdout.write(`  LONG signals : ${longs.length}/10  (high=${highConfLongs.length}  medium=${mediumConfLongs.length}  low=${longs.length - highConfLongs.length - mediumConfLongs.length})\n`);
   process.stdout.write(`  FLAT         : ${flats.length}/10\n`);
   process.stdout.write(pc.dim(`  scan elapsed : ${elapsed}s\n`));
+
+  // Fire signals to log on demand (read-only otherwise).
+  if (fire) {
+    const existing = new Set(readSignals().map((r) => r.id));
+    const eligible = ranked.filter(
+      (a) =>
+        a.verdict?.side === "LONG" &&
+        (a.verdict.confidence === "high" ||
+          (minConfidence === "medium" && a.verdict.confidence === "medium")),
+    );
+    let fired = 0;
+    process.stdout.write("\n" + pc.bold("Fire candidates:") + "\n");
+    for (const a of eligible) {
+      // Each scan fires at most ONE record per (symbol, day). The id pattern
+      // is `${symbol}-${ts}` from appendSignal — to avoid hourly re-fires of
+      // the same setup we lookup by symbol-day stub here.
+      const dayStub = new Date().toISOString().slice(0, 10);
+      const dupKey = `${a.perpSymbol}-${dayStub}`;
+      const alreadyFiredToday = [...existing].some((id) => id.startsWith(dupKey));
+      if (alreadyFiredToday) {
+        process.stdout.write(`  ${pc.dim(`skip ${a.perpSymbol}: already fired today`)}\n`);
+        continue;
+      }
+      const plan = generateTradePlan({
+        analysis: a,
+        accountUsd: 1000, // notional reference; paper-trader scales by tenant cash
+        leverage: 1,
+        mode: "spot",
+      });
+      if (!plan || !a.perpSymbol || !a.ticker) {
+        process.stdout.write(`  ${pc.dim(`skip ${a.perpSymbol}: no plan`)}\n`);
+        continue;
+      }
+      appendSignal({
+        ts: Date.parse(`${dayStub}T${new Date().toISOString().slice(11, 19)}Z`),
+        symbol: a.perpSymbol,
+        asset: a.asset,
+        exchange: "coinbase-spot",
+        mode: "spot",
+        naturalSide: a.naturalSide,
+        side: a.verdict.side,
+        fired: true,
+        shadowReason: null,
+        composite: a.confluence.score,
+        stage2: a.stage2,
+        aligned: a.confluence.aligned,
+        htfDirection: a.confluence.htfDirection,
+        ltfDirection: a.confluence.ltfDirection,
+        entryPrice: a.ticker.lastPrice,
+        stopPrice: plan.stop.price,
+        tp1Price: plan.targets[0]?.price ?? null,
+        tp2Price: plan.targets[1]?.price ?? null,
+        tp3Price: plan.targets[2]?.price ?? null,
+        outcome: null,
+      });
+      process.stdout.write(
+        `  ${pc.green("fired")} ${a.perpSymbol} ${a.verdict.confidence} ` +
+          `entry=${a.ticker.lastPrice} stop=${plan.stop.price.toFixed(6)} ` +
+          `tp1=${plan.targets[0]?.price?.toFixed(6) ?? "-"}\n`,
+      );
+      fired++;
+    }
+    process.stdout.write(pc.dim(`  ${fired} signal(s) appended to signal log\n`));
+  }
 }
 
 main().catch((e) => {

@@ -43,8 +43,15 @@ export interface SignalRecord {
   /** unique id: `${symbol}-${ts}` so duplicate suppression is cheap. */
   id: string;
   ts: number;
-  symbol: string;          // e.g. "ICP_USDT"
+  symbol: string;          // e.g. "ICP_USDT" or "BTC-USDC"
   asset: string;           // e.g. "ICP"
+  /**
+   * Exchange this signal was generated on. Optional for back-compat with
+   * pre-multi-exchange entries; missing = "mexc-futures".
+   */
+  exchange?: string;
+  /** "futures" (leveraged perps) or "spot" (Coinbase). Defaults to "futures". */
+  mode?: "futures" | "spot";
   /** Side BEFORE Stage 2 gate (what the strategy "wanted" to do). */
   naturalSide: "LONG" | "SHORT" | "FLAT";
   /** Side AFTER Stage 2 gate. If naturalSide=LONG and side=FLAT, signal was shadowed. */

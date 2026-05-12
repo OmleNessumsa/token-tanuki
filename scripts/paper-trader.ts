@@ -13,16 +13,29 @@
  *   - 7 days open without TP1 → close at market.
  */
 
-import { getFuturesTicker } from "../src/clients/mexc-futures.js";
 import { sendTelegram } from "../src/clients/telegram.js";
 import { readSignals } from "../src/signal-log.js";
 import {
   loadPortfolio, savePortfolio, computeSlicePnl, computeR,
+  defaultTakerFeePct, feesForSlice,
   type PaperPortfolio, type PaperPosition, type PaperTrade, type ScaleOut, type ScaleOutReason,
 } from "../src/paper-portfolio.js";
+import type { ExchangeAdapter } from "../src/exchange.js";
+import { mexcFuturesAdapter } from "../src/clients/mexc-adapter.js";
+import { coinbaseSpotAdapter } from "../src/clients/coinbase-adapter.js";
 
-const NOTIONAL_PER_TRADE = 50;
-const LEVERAGE = 20;
+const ADAPTERS: Record<string, ExchangeAdapter> = {
+  "mexc-futures": mexcFuturesAdapter,
+  "coinbase-spot": coinbaseSpotAdapter,
+};
+
+/** Resolve the adapter for a position. Defaults to MEXC for legacy records that pre-date the exchange tag. */
+function adapterFor(exchange: string | undefined): ExchangeAdapter {
+  return ADAPTERS[exchange ?? "mexc-futures"] ?? mexcFuturesAdapter;
+}
+
+const NOTIONAL_PER_TRADE_DEFAULT = 50;
+const LEVERAGE_FUTURES_DEFAULT = 20;
 const HORIZON_DAYS = 7;
 const SLEEP_BETWEEN_CHECKS_MS = 600;
 
@@ -84,11 +97,19 @@ function finalizeIfDone(pos: PaperPosition, p: PaperPortfolio, finalReason: Scal
   if (pos.remainingFraction > 0.001) return null;
   const totalPnlUsd = pos.scaleOuts.reduce((acc, s) => acc + s.pnlUsd, 0);
   const totalR = pos.scaleOuts.reduce((acc, s) => acc + s.rMultiple * s.fraction, 0);
+  // Recompute total fees deducted: pnl is net, but expose gross-vs-fees.
+  const feePct = defaultTakerFeePct(pos.exchange);
+  const totalFees = pos.scaleOuts.reduce(
+    (acc, s) => acc + feesForSlice(pos.notionalUsd, s.fraction, feePct),
+    0,
+  );
   const trade: PaperTrade = {
     id: pos.id,
     signalId: pos.signalId,
     symbol: pos.symbol,
     asset: pos.asset,
+    exchange: pos.exchange,
+    mode: pos.mode,
     side: "LONG",
     openTs: pos.openTs,
     closedTs: Date.now(),
@@ -99,6 +120,7 @@ function finalizeIfDone(pos: PaperPosition, p: PaperPortfolio, finalReason: Scal
     scaleOuts: pos.scaleOuts,
     totalRMultiple: totalR,
     totalPnlUsd,
+    totalFeesUsd: totalFees,
   };
   p.closedTrades.push(trade);
   p.cash += totalPnlUsd;
@@ -108,8 +130,12 @@ function finalizeIfDone(pos: PaperPosition, p: PaperPortfolio, finalReason: Scal
 
 async function recordSlice(pos: PaperPosition, fraction: number, price: number, reason: ScaleOutReason): Promise<ScaleOut> {
   const r = computeR(pos.entryPrice, price, pos.initialStop);
-  const pnl = computeSlicePnl(pos.entryPrice, price, pos.notionalUsd, pos.leverage, fraction);
-  const slice: ScaleOut = { ts: Date.now(), price, fraction, reason, rMultiple: r, pnlUsd: pnl };
+  const grossPnl = computeSlicePnl(pos.entryPrice, price, pos.notionalUsd, pos.leverage, fraction);
+  // Net pnl: subtract round-trip fees for the closed fraction.
+  const feePct = defaultTakerFeePct(pos.exchange);
+  const fees = feesForSlice(pos.notionalUsd, fraction, feePct);
+  const netPnl = grossPnl - fees;
+  const slice: ScaleOut = { ts: Date.now(), price, fraction, reason, rMultiple: r, pnlUsd: netPnl };
   pos.scaleOuts.push(slice);
   pos.remainingFraction = Math.max(0, pos.remainingFraction - fraction);
   return slice;
@@ -118,7 +144,8 @@ async function recordSlice(pos: PaperPosition, fraction: number, price: number, 
 async function processOpenPositions(p: PaperPortfolio): Promise<void> {
   for (const pos of [...p.openPositions]) {
     try {
-      const ticker = await getFuturesTicker(pos.symbol);
+      const adapter = adapterFor(pos.exchange);
+      const ticker = await adapter.getTicker(pos.symbol);
       if (!ticker) continue;
       const current = ticker.lastPrice;
       pos.lastChecked = Date.now();
@@ -176,21 +203,45 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
   );
   for (const sig of newOnes) {
     const stop = sig.stopPrice!;
-    const tp1 = sig.tp1Price!;
     const oneR = sig.entryPrice - stop;
-    // Fallbacks: TP2 = entry + 2R, TP3 = entry + 3R if not provided
-    const tp2 = sig.tp2Price ?? sig.entryPrice + 2 * oneR;
-    const tp3 = sig.tp3Price ?? sig.entryPrice + 3 * oneR;
+    // Fallbacks: TP2 = entry + 2R, TP3 = entry + 3R if not provided.
+    // After fallbacks, sort the three by ascending price so the state machine
+    // ("TP3 requires TP2 hit") doesn't deadlock when a synthetic TP3 ends up
+    // below a plan-derived TP2 (happens when plan produced only 2 targets and
+    // one was a high-R:R pattern target).
+    const tpRaw = [
+      sig.tp1Price!,
+      sig.tp2Price ?? sig.entryPrice + 2 * oneR,
+      sig.tp3Price ?? sig.entryPrice + 3 * oneR,
+    ];
+    const sorted = tpRaw.slice().sort((a, b) => a - b);
+    const tp1 = sorted[0]!;
+    const tp2 = sorted[1]!;
+    const tp3 = sorted[2]!;
+    // Mode-aware sizing: spot positions size from account context (capped
+    // by the spot trade-plan cap, default 25% of account) rather than the
+    // legacy $50×20× MEXC convention. Sizing on the spot side is computed
+    // from initialCash × 0.25 so each tenant's paper book scales to its
+    // actual capital. MEXC paper stays on $50 × 20× for legacy parity.
+    const mode = sig.mode ?? "futures";
+    const exchange = sig.exchange ?? "mexc-futures";
+    const isSpot = mode === "spot";
+    const notional = isSpot
+      ? Math.min(p.cash, p.initialCash) * 0.25
+      : NOTIONAL_PER_TRADE_DEFAULT;
+    const leverage = isSpot ? 1 : LEVERAGE_FUTURES_DEFAULT;
     const pos: PaperPosition = {
       id: sig.id,
       signalId: sig.id,
       symbol: sig.symbol,
       asset: sig.asset,
+      exchange,
+      mode,
       side: "LONG",
       openTs: sig.ts,
       entryPrice: sig.entryPrice,
-      notionalUsd: NOTIONAL_PER_TRADE,
-      leverage: LEVERAGE,
+      notionalUsd: notional,
+      leverage,
       initialStop: stop,
       currentStop: stop,
       tp1Price: tp1,
@@ -218,7 +269,8 @@ async function maybePostDailySummary(p: PaperPortfolio): Promise<void> {
   const livePrices: Record<string, number> = {};
   for (const pos of p.openPositions) {
     try {
-      const t = await getFuturesTicker(pos.symbol);
+      const adapter = adapterFor(pos.exchange);
+      const t = await adapter.getTicker(pos.symbol);
       if (t) livePrices[pos.symbol] = t.lastPrice;
     } catch { /* ignore */ }
     await sleep(SLEEP_BETWEEN_CHECKS_MS);
