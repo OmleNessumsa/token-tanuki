@@ -45,8 +45,11 @@ describe("feesForSlice", () => {
 });
 
 describe("defaultTakerFeePct", () => {
-  it("0.5% for Coinbase spot", () => {
-    expect(defaultTakerFeePct("coinbase-spot")).toBe(0.5);
+  it("1.2% for Coinbase spot (Intro 1 taker, verified 2026-05-15)", () => {
+    // Earlier the constant was 0.5 (legacy Coinbase Pro). Real Advanced
+    // Trade Intro 1 taker is 1.20%/side. Understating fees made paper look
+    // better than live would be.
+    expect(defaultTakerFeePct("coinbase-spot")).toBe(1.2);
   });
 
   it("0 for MEXC futures (legacy parity — paper never modeled fees)", () => {
@@ -60,23 +63,24 @@ describe("defaultTakerFeePct", () => {
 });
 
 describe("net pnl after fees (regression scenario)", () => {
-  it("Coinbase $250 notional, +2% move, full close → ~$2.50 net after $2.50 fees", () => {
+  it("Coinbase $250 notional, +2% move, full close → -$1.00 net after $6.00 fees", () => {
+    // At Intro 1 (1.2%/side = 2.4% round-trip), a 2% move on a $250 notional
+    // is actually a NET LOSS — fees exceed the gain. This is the central
+    // insight from the 2026-05-15 post-mortem and the main reason a move
+    // to maker-only orders is on the roadmap.
     const gross = computeSlicePnl(100, 102, 250, 1, 1); // +$5
-    const fees = feesForSlice(250, 1, defaultTakerFeePct("coinbase-spot")); // $2.50
+    const fees = feesForSlice(250, 1, defaultTakerFeePct("coinbase-spot")); // $6.00
     const net = gross - fees;
     expect(gross).toBeCloseTo(5, 6);
-    expect(fees).toBeCloseTo(2.5, 6);
-    expect(net).toBeCloseTo(2.5, 6);
+    expect(fees).toBeCloseTo(6, 6);
+    expect(net).toBeCloseTo(-1, 6);
   });
 
-  it("Coinbase TP1 (50%) at +1.5% move on $250 notional → $1.25 gross, $1.25 fees, net 0", () => {
-    const gross = computeSlicePnl(100, 101.5, 250, 1, 0.5); // 0.015 × 250 × 1 × 0.5 = $1.875
-    const fees = feesForSlice(250, 0.5, 0.5); // 0.005 × 250 × 0.5 × 2 = $1.25
-    expect(gross).toBeCloseTo(1.875, 6);
-    expect(fees).toBeCloseTo(1.25, 6);
-    expect(gross - fees).toBeCloseTo(0.625, 6);
-    // Practical takeaway: at 25% spot cap, 1.5% moves barely cover fees.
-    // The strategy needs >2% TP1s to be fee-net positive.
+  it("Break-even move on Coinbase Intro 1 taker is ~2.4% per round-trip", () => {
+    // Round-trip taker fee = 2 × 1.2% = 2.4%, so we need >2.4% of price move
+    // (full-close fraction) to be fee-net positive.
+    const fees = feesForSlice(1000, 1, defaultTakerFeePct("coinbase-spot"));
+    expect(fees).toBeCloseTo(24, 6); // $24 on $1000 = 2.4%
   });
 });
 

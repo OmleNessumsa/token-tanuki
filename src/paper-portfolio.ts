@@ -154,9 +154,20 @@ export function feesForSlice(notional: number, fraction: number, takerFeePctPerS
   return (takerFeePctPerSide / 100) * notional * fraction * 2;
 }
 
-/** Default per-side taker fee % per exchange. */
+/**
+ * Default per-side taker fee % per exchange.
+ *
+ * Coinbase Advanced Trade Intro 1 tier (<$10k 30-day volume, where this
+ * tenant lives): 1.20% taker per side. Earlier 0.50% estimate was the
+ * legacy Coinbase Pro schedule and understated real cost by ~2x.
+ * Maker fee at the same tier is 0.60% — switching execution to post-only
+ * limit orders is on the roadmap (sprint B).
+ *
+ * Source verified 2026-05-15:
+ *   help.coinbase.com/.../advanced-trade-fees
+ */
 export function defaultTakerFeePct(exchange: string | undefined): number {
-  if (exchange === "coinbase-spot") return 0.5;
+  if (exchange === "coinbase-spot") return 1.2;
   if (exchange === "mexc-futures") return 0.0; // legacy paper-trader didn't model fees
   return 0.0;
 }

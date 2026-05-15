@@ -197,6 +197,7 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
   const signals = readSignals();
   // Require at minimum: stop + TP1. TP2/TP3 are nice-to-have; we synthesize
   // them via 1×R progression if the trade plan didn't produce them.
+  const openSymbols = new Set(p.openPositions.map((pos) => pos.symbol));
   const newOnes = signals.filter((s) => {
     if (!s.fired || s.side !== "LONG") return false;
     if (s.stopPrice === null || s.tp1Price === null) return false;
@@ -206,6 +207,11 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
     // the state machine and force-fire all TPs in one tick.
     if (s.stopPrice >= s.entryPrice) return false;
     if (s.tp1Price <= s.entryPrice) return false;
+    // Belt-and-braces: scanner cooldown should already prevent same-symbol
+    // re-fires, but if a signal sneaks through, never stack a second paper
+    // position on a symbol that already has one open. Position correlation
+    // is risk amplification we don't want.
+    if (openSymbols.has(s.symbol)) return false;
     return true;
   });
   for (const sig of newOnes) {

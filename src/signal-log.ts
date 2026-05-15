@@ -117,4 +117,27 @@ export function writeSignals(records: readonly SignalRecord[]): void {
   writeFileSync(LOG_FILE, body);
 }
 
+/**
+ * Returns true if `symbol` has a *fired* signal newer than `now - cooldownMs`
+ * within `records`. Used by the scanner to prevent re-firing the same setup
+ * every 30 minutes — the original day-prefix dedup in scan-coinbase.ts was
+ * broken (compared `symbol-YYYY-MM-DD` against id pattern `symbol-<unix-ms>`,
+ * which never matched), causing the same DOGE/LINK/BTC signals to stack
+ * back-to-back. Use this helper to dedupe properly.
+ */
+export function isOnCooldown(
+  records: readonly SignalRecord[],
+  symbol: string,
+  cooldownMs: number,
+  now: number = Date.now(),
+): boolean {
+  const cutoff = now - cooldownMs;
+  for (const r of records) {
+    if (r.symbol !== symbol) continue;
+    if (!r.fired) continue;
+    if (r.ts >= cutoff) return true;
+  }
+  return false;
+}
+
 export const SIGNAL_LOG_PATH = LOG_FILE;

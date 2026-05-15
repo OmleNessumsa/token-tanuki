@@ -10,8 +10,18 @@ import pc from "picocolors";
 import { analyzeFutures, type FuturesAnalysis } from "../src/analyze-futures.js";
 import { generateTradePlan } from "../src/analysis/trade-plan.js";
 import { coinbaseSpotAdapter } from "../src/clients/coinbase-adapter.js";
-import { appendSignal, readSignals } from "../src/signal-log.js";
-import { COINBASE_TOP10_ASSETS } from "../src/whitelist.js";
+import { appendSignal, isOnCooldown, readSignals } from "../src/signal-log.js";
+import { COINBASE_ACTIVE_ASSETS, COINBASE_TOP10_ASSETS } from "../src/whitelist.js";
+
+const DEFAULT_COOLDOWN_HOURS = 6;
+
+function parseCooldownHours(argv: readonly string[]): number {
+  const idx = argv.indexOf("--cooldown-hours");
+  if (idx === -1 || idx === argv.length - 1) return DEFAULT_COOLDOWN_HOURS;
+  const raw = argv[idx + 1];
+  const n = raw === undefined ? Number.NaN : Number.parseFloat(raw);
+  return Number.isFinite(n) && n >= 0 ? n : DEFAULT_COOLDOWN_HOURS;
+}
 
 function colorSide(side: string): string {
   if (side === "LONG") return pc.bgGreen(pc.black(` LONG  `));
@@ -50,11 +60,18 @@ function fmtPrice(n: number | undefined): string {
 async function main(): Promise<void> {
   const fire = process.argv.includes("--fire");
   const minConfidence = process.argv.includes("--high-only") ? "high" : "medium";
+  const cooldownHours = parseCooldownHours(process.argv);
+  const allowAllAssets = process.argv.includes("--all-assets");
+  const allowNonStage2 = process.argv.includes("--allow-non-stage2");
   const started = Date.now();
   process.stdout.write(pc.bold("Scanning Coinbase top-10 spot — multi-TF (5m/15m/1h/4h/1d)\n"));
   if (fire) {
     process.stdout.write(
-      pc.dim(`Fire mode: writing ${minConfidence}+ confidence LONG signals to signal log\n`),
+      pc.dim(
+        `Fire mode: ${minConfidence}+ LONGs · stage2=${allowNonStage2 ? "any" : "true"} · ` +
+          `assets=${allowAllAssets ? "top-10" : COINBASE_ACTIVE_ASSETS.join("+")} · ` +
+          `cooldown=${cooldownHours}h\n`,
+      ),
     );
   }
   process.stdout.write("\n");
@@ -144,7 +161,9 @@ async function main(): Promise<void> {
 
   // Fire signals to log on demand (read-only otherwise).
   if (fire) {
-    const existing = new Set(readSignals().map((r) => r.id));
+    const existingRecords = readSignals();
+    const cooldownMs = cooldownHours * 3600 * 1000;
+    const activeSet = new Set(COINBASE_ACTIVE_ASSETS);
     const eligible = ranked.filter(
       (a) =>
         a.verdict?.side === "LONG" &&
@@ -154,14 +173,23 @@ async function main(): Promise<void> {
     let fired = 0;
     process.stdout.write("\n" + pc.bold("Fire candidates:") + "\n");
     for (const a of eligible) {
-      // Each scan fires at most ONE record per (symbol, day). The id pattern
-      // is `${symbol}-${ts}` from appendSignal — to avoid hourly re-fires of
-      // the same setup we lookup by symbol-day stub here.
-      const dayStub = new Date().toISOString().slice(0, 10);
-      const dupKey = `${a.perpSymbol}-${dayStub}`;
-      const alreadyFiredToday = [...existing].some((id) => id.startsWith(dupKey));
-      if (alreadyFiredToday) {
-        process.stdout.write(`  ${pc.dim(`skip ${a.perpSymbol}: already fired today`)}\n`);
+      if (!a.perpSymbol) continue;
+      if (!allowAllAssets && !activeSet.has(a.asset)) {
+        process.stdout.write(
+          `  ${pc.dim(`skip ${a.perpSymbol}: ${a.asset} suspended (post-mortem blacklist)`)}\n`,
+        );
+        continue;
+      }
+      if (!allowNonStage2 && a.stage2 !== true) {
+        process.stdout.write(
+          `  ${pc.dim(`skip ${a.perpSymbol}: Stage 2 ${a.stage2 === false ? "✗" : "?"} (hard-required)`)}\n`,
+        );
+        continue;
+      }
+      if (isOnCooldown(existingRecords, a.perpSymbol, cooldownMs)) {
+        process.stdout.write(
+          `  ${pc.dim(`skip ${a.perpSymbol}: cooldown (<${cooldownHours}h since last fire)`)}\n`,
+        );
         continue;
       }
       const plan = generateTradePlan({
@@ -175,7 +203,7 @@ async function main(): Promise<void> {
         continue;
       }
       appendSignal({
-        ts: Date.parse(`${dayStub}T${new Date().toISOString().slice(11, 19)}Z`),
+        ts: Date.now(),
         symbol: a.perpSymbol,
         asset: a.asset,
         exchange: "coinbase-spot",
