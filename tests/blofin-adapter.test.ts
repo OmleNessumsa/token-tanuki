@@ -30,11 +30,14 @@ describe("blofinFuturesAdapter", () => {
     expect(typeof adapter.getFundingRate).toBe("function");
   });
 
-  it("does not expose account/order methods yet (added in S2/S5)", () => {
+  it("exposes getBalances (S2)", () => {
+    expect(typeof adapter.getBalances).toBe("function");
+  });
+
+  it("does not expose order methods yet (added in S5 behind safety rails)", () => {
     expect(adapter.placeOrder).toBeUndefined();
     expect(adapter.cancelOrder).toBeUndefined();
     expect(adapter.getOpenOrders).toBeUndefined();
-    expect(adapter.getBalances).toBeUndefined();
   });
 });
 

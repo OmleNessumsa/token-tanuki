@@ -12,7 +12,7 @@
  *  - Native 4H bars (unlike Coinbase) — no aggregation needed
  */
 
-import type { ExchangeAdapter, FundingInfo, Ticker, Timeframe } from "../exchange.js";
+import type { Balance, ExchangeAdapter, FundingInfo, Ticker, Timeframe } from "../exchange.js";
 import {
   BLOFIN_FUNDING_CYCLE_HOURS,
   findCanonicalPerp,
@@ -22,6 +22,7 @@ import {
   symbolExists,
   type BlofinBar,
 } from "./blofin.js";
+import { getBalances as blofinGetBalances } from "./blofin-private.js";
 
 const TF_TO_BLOFIN: Record<Timeframe, BlofinBar> = {
   "1m": "1m",
@@ -93,5 +94,16 @@ export const blofinFuturesAdapter: ExchangeAdapter = {
       cycleHours: BLOFIN_FUNDING_CYCLE_HOURS,
       nextSettleTime: Number(f.fundingTime),
     };
+  },
+
+  async getBalances(): Promise<Balance[]> {
+    const rows = await blofinGetBalances("futures");
+    return rows.map((r) => ({
+      asset: r.currency,
+      free: Number(r.available ?? 0),
+      // Blofin's "frozen" is locked-in-orders + locked-in-positions; treat
+      // as the `locked` field of the normalized Balance.
+      locked: Number(r.frozen ?? 0),
+    }));
   },
 };
