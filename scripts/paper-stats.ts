@@ -19,6 +19,7 @@ import type { SignalRecord } from "../src/signal-log.js";
 import type { ExchangeAdapter } from "../src/exchange.js";
 import { mexcFuturesAdapter } from "../src/clients/mexc-adapter.js";
 import { coinbaseSpotAdapter } from "../src/clients/coinbase-adapter.js";
+import { blofinFuturesAdapter } from "../src/clients/blofin-adapter.js";
 
 const STATE_DIR = process.env.CRYPTOTRADER_STATE_DIR ?? join(homedir(), ".cryptotrader");
 const PORTFOLIO_FILE = join(STATE_DIR, "paper-portfolio.json");
@@ -27,6 +28,7 @@ const SIGNALS_FILE = join(STATE_DIR, "signals.jsonl");
 const ADAPTERS: Record<string, ExchangeAdapter> = {
   "mexc-futures": mexcFuturesAdapter,
   "coinbase-spot": coinbaseSpotAdapter,
+  "blofin-futures": blofinFuturesAdapter,
 };
 
 const fmtUsd = (n: number): string => {
