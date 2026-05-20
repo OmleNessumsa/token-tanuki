@@ -49,3 +49,37 @@ export const COINBASE_TOP10_ASSETS: readonly string[] = [
 export const COINBASE_ACTIVE_ASSETS: readonly string[] = [
   "ETH", "SOL", "DOGE", "ADA", "LINK",
 ] as const;
+
+/**
+ * Blofin perpetual futures top-10 (USDT-quoted). Symbol format is `BASE-USDT`,
+ * matching Blofin's instId convention. Same asset set as Coinbase for apples-
+ * to-apples comparison — but on a futures exchange we get leverage, shorts,
+ * and ~20× lower fees (0.06% taker vs 1.20% on Coinbase Intro 1).
+ *
+ * MATIC is aliased to POL inside blofin.ts (Polygon rebrand).
+ */
+export const BLOFIN_TOP10_PERP: readonly string[] = [
+  "BTC-USDT",
+  "ETH-USDT",
+  "SOL-USDT",
+  "XRP-USDT",
+  "DOGE-USDT",
+  "ADA-USDT",
+  "AVAX-USDT",
+  "LINK-USDT",
+  "DOT-USDT",
+  "POL-USDT",       // formerly MATIC
+] as const;
+
+export const BLOFIN_TOP10_ASSETS: readonly string[] = [
+  "BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT", "POL",
+] as const;
+
+/**
+ * Subset Blofin is allowed to auto-fire on. We start with ALL of top-10 active
+ * — we don't have Blofin forward-test data yet, and the Coinbase blacklist
+ * (BTC/XRP/DOT/AVAX/POL) was driven by Coinbase-spot fee economics, not by
+ * the underlying asset's setup quality. Re-evaluate after ~30 closed Blofin
+ * paper trades.
+ */
+export const BLOFIN_ACTIVE_ASSETS: readonly string[] = BLOFIN_TOP10_ASSETS;

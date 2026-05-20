@@ -15,12 +15,14 @@ import { generateTradePlan, type TradePlan } from "./analysis/trade-plan.js";
 import type { ExchangeAdapter } from "./exchange.js";
 import { mexcFuturesAdapter } from "./clients/mexc-adapter.js";
 import { coinbaseSpotAdapter } from "./clients/coinbase-adapter.js";
+import { blofinFuturesAdapter } from "./clients/blofin-adapter.js";
 
-type ExchangeChoice = "mexc" | "coinbase";
+type ExchangeChoice = "mexc" | "coinbase" | "blofin";
 
 const ADAPTERS: Record<ExchangeChoice, ExchangeAdapter> = {
   mexc: mexcFuturesAdapter,
   coinbase: coinbaseSpotAdapter,
+  blofin: blofinFuturesAdapter,
 };
 
 interface CliArgs {
@@ -50,7 +52,10 @@ function parseArgs(argv: readonly string[]): CliArgs | null {
   }
   if (!asset) return null;
   const exchangeRaw = typeof args.exchange === "string" ? args.exchange.toLowerCase() : "mexc";
-  const exchange: ExchangeChoice = exchangeRaw === "coinbase" ? "coinbase" : "mexc";
+  const exchange: ExchangeChoice =
+    exchangeRaw === "coinbase" ? "coinbase" :
+    exchangeRaw === "blofin"   ? "blofin"   :
+    "mexc";
   // Spot adapters don't support leverage — force to 1 if user passed something else.
   const adapter = ADAPTERS[exchange];
   const defaultLev = adapter.supportsLeverage ? 20 : 1;
@@ -173,11 +178,12 @@ function printHelp(): void {
   process.stdout.write(`cryptotrader futures — multi-timeframe trade plan generator.
 
 Usage:
-  cryptotrader futures <ASSET> [--exchange mexc|coinbase] [--leverage N] [--account USD] [--risk PCT] [--json]
+  cryptotrader futures <ASSET> [--exchange mexc|coinbase|blofin] [--leverage N] [--account USD] [--risk PCT] [--json]
 
 Examples:
   cryptotrader futures BCH                              # MEXC perps, 20× leverage
   cryptotrader futures BTC --exchange coinbase          # Coinbase spot, no leverage
+  cryptotrader futures ETH --exchange blofin            # Blofin perps, default 20× (set to 5× via --leverage)
   cryptotrader futures TON --leverage 20 --account 10000
   cryptotrader futures BTC --leverage 10 --account 5000 --risk 0.5
 
