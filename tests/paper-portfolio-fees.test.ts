@@ -56,6 +56,13 @@ describe("defaultTakerFeePct", () => {
     expect(defaultTakerFeePct("mexc-futures")).toBe(0);
   });
 
+  it("0.06% for Blofin futures (Intro tier taker, verified 2026-05-20)", () => {
+    // 20× cheaper than Coinbase taker — the central reason for the platform
+    // switch. Maker fee at the same tier is 0.02% but we conservatively model
+    // taker (market orders) until execution path goes maker-only.
+    expect(defaultTakerFeePct("blofin-futures")).toBe(0.06);
+  });
+
   it("0 for unknown / missing exchange (back-compat)", () => {
     expect(defaultTakerFeePct(undefined)).toBe(0);
     expect(defaultTakerFeePct("nonsense")).toBe(0);

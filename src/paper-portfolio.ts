@@ -33,6 +33,8 @@ export interface ScaleOut {
   pnlUsd: number;
 }
 
+export type PositionSide = "LONG" | "SHORT";
+
 export interface PaperPosition {
   id: string;
   signalId: string;            // ties back to signal-log entry
@@ -42,7 +44,13 @@ export interface PaperPosition {
   exchange?: string;
   /** "futures" or "spot". Drives fee model + pnl math. Defaults to "futures". */
   mode?: "futures" | "spot";
-  side: "LONG";
+  /**
+   * LONG = expect price to rise; SHORT = expect price to fall. SHORT positions
+   * are only created on adapters with supportsShort=true (Blofin/MEXC, not
+   * Coinbase spot). Field is required to avoid silent misinterpretation of
+   * legacy records — back-compat handling treats missing as LONG.
+   */
+  side: PositionSide;
   openTs: number;
   entryPrice: number;
   /** Total notional at open (in USD/USDC). */
@@ -69,7 +77,7 @@ export interface PaperTrade {
   asset: string;
   exchange?: string;
   mode?: "futures" | "spot";
-  side: "LONG";
+  side: PositionSide;
   openTs: number;
   closedTs: number;
   entryPrice: number;
@@ -131,13 +139,26 @@ export function savePortfolio(p: PaperPortfolio): void {
 
 /**
  * Compute realized PnL in USD for a leveraged paper position slice.
- * pnl = (exitPrice - entryPrice) / entryPrice × notional × leverage × fraction
+ *
+ * LONG:  pnl = (exit - entry) / entry × notional × leverage × fraction
+ * SHORT: pnl = (entry - exit) / entry × notional × leverage × fraction
+ *
+ * Backwards-compatible signature: if `side` is omitted, assumes LONG so
+ * existing call sites keep their behaviour. New SHORT-aware callers should
+ * pass the side explicitly.
  *
  * NOTE: this is GROSS pnl. Use `feesForSlice` to apportion round-trip fees
- * and subtract them for net realized P&L on spot exchanges.
+ * and subtract them for net realized P&L on fee-bearing exchanges.
  */
-export function computeSlicePnl(entry: number, exit: number, notional: number, leverage: number, fraction: number): number {
-  const movePct = (exit - entry) / entry;
+export function computeSlicePnl(
+  entry: number,
+  exit: number,
+  notional: number,
+  leverage: number,
+  fraction: number,
+  side: PositionSide = "LONG",
+): number {
+  const movePct = side === "LONG" ? (exit - entry) / entry : (entry - exit) / entry;
   return movePct * notional * leverage * fraction;
 }
 
@@ -155,28 +176,49 @@ export function feesForSlice(notional: number, fraction: number, takerFeePctPerS
 }
 
 /**
- * Default per-side taker fee % per exchange.
+ * Default per-side taker fee % per exchange. Sources verified 2026-05-15
+ * (Coinbase) / 2026-05-20 (Blofin).
  *
- * Coinbase Advanced Trade Intro 1 tier (<$10k 30-day volume, where this
- * tenant lives): 1.20% taker per side. Earlier 0.50% estimate was the
- * legacy Coinbase Pro schedule and understated real cost by ~2x.
- * Maker fee at the same tier is 0.60% — switching execution to post-only
- * limit orders is on the roadmap (sprint B).
- *
- * Source verified 2026-05-15:
- *   help.coinbase.com/.../advanced-trade-fees
+ *  - Coinbase Advanced Trade Intro 1 (<$10k 30-day volume): 1.20% taker.
+ *    Earlier 0.50% was the legacy Coinbase Pro schedule and understated
+ *    real cost ~2×.
+ *  - Blofin perpetual futures base tier: 0.06% taker (maker 0.02%).
+ *    20× cheaper than Coinbase taker; the central reason for the
+ *    2026-05-20 platform switch.
+ *  - MEXC futures: legacy paper-trader didn't model fees; keep 0 for
+ *    backwards-compatible replays of old trades.
  */
 export function defaultTakerFeePct(exchange: string | undefined): number {
   if (exchange === "coinbase-spot") return 1.2;
-  if (exchange === "mexc-futures") return 0.0; // legacy paper-trader didn't model fees
+  if (exchange === "blofin-futures") return 0.06;
+  if (exchange === "mexc-futures") return 0.0;
   return 0.0;
 }
 
-/** R = realized price move / initial price risk. Side-agnostic for LONG. */
-export function computeR(entry: number, exit: number, initialStop: number): number {
-  const risk = entry - initialStop;
+/**
+ * R = realized price move / initial price risk, with side awareness.
+ *
+ *   LONG  risk = entry - stop;  r = (exit - entry) / risk
+ *   SHORT risk = stop  - entry; r = (entry - exit) / risk
+ *
+ * Returns 0 when the stop is on the wrong side of entry (invalid setup) so
+ * malformed records can't yield a nonsensical R-multiple. The `side` parameter
+ * defaults to LONG to keep legacy call sites compiling unchanged.
+ */
+export function computeR(
+  entry: number,
+  exit: number,
+  initialStop: number,
+  side: PositionSide = "LONG",
+): number {
+  if (side === "LONG") {
+    const risk = entry - initialStop;
+    if (risk <= 0) return 0;
+    return (exit - entry) / risk;
+  }
+  const risk = initialStop - entry;
   if (risk <= 0) return 0;
-  return (exit - entry) / risk;
+  return (entry - exit) / risk;
 }
 
 export const PAPER_PORTFOLIO_PATH = FILE;

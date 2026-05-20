@@ -23,10 +23,12 @@ import {
 import type { ExchangeAdapter } from "../src/exchange.js";
 import { mexcFuturesAdapter } from "../src/clients/mexc-adapter.js";
 import { coinbaseSpotAdapter } from "../src/clients/coinbase-adapter.js";
+import { blofinFuturesAdapter } from "../src/clients/blofin-adapter.js";
 
 const ADAPTERS: Record<string, ExchangeAdapter> = {
   "mexc-futures": mexcFuturesAdapter,
   "coinbase-spot": coinbaseSpotAdapter,
+  "blofin-futures": blofinFuturesAdapter,
 };
 
 /** Resolve the adapter for a position. Defaults to MEXC for legacy records that pre-date the exchange tag. */
@@ -34,8 +36,19 @@ function adapterFor(exchange: string | undefined): ExchangeAdapter {
   return ADAPTERS[exchange ?? "mexc-futures"] ?? mexcFuturesAdapter;
 }
 
+/**
+ * Default leverage to size with when the signal didn't pin one. MEXC was
+ * historically 20× (legacy paper convention). Blofin starts conservatively
+ * at 5× per the 2026-05-20 plan; trade-plan will adjust downward if the
+ * stop wouldn't fit in the liquidation buffer at that leverage.
+ */
+function defaultLeverage(exchange: string | undefined): number {
+  if (exchange === "blofin-futures") return 5;
+  if (exchange === "coinbase-spot") return 1;
+  return 20; // mexc-futures legacy
+}
+
 const NOTIONAL_PER_TRADE_DEFAULT = 50;
-const LEVERAGE_FUTURES_DEFAULT = 20;
 const HORIZON_DAYS = 7;
 const SLEEP_BETWEEN_CHECKS_MS = 600;
 
@@ -57,13 +70,16 @@ function fmtUsd(n: number): string {
 }
 
 async function postOpen(pos: PaperPosition): Promise<void> {
-  const stopDistPct = ((pos.entryPrice - pos.initialStop) / pos.entryPrice * 100).toFixed(2);
-  const tp1Pct = ((pos.tp1Price - pos.entryPrice) / pos.entryPrice * 100).toFixed(2);
+  const isLong = pos.side === "LONG";
+  // Stop and TP distances render as absolute %s; the direction is implied by side.
+  const stopDistPct = (Math.abs(pos.entryPrice - pos.initialStop) / pos.entryPrice * 100).toFixed(2);
+  const tp1Pct = (Math.abs(pos.tp1Price - pos.entryPrice) / pos.entryPrice * 100).toFixed(2);
+  const arrow = isLong ? "📈" : "📉";
   const lines = [
-    `🤖 <b>Claude Paper</b> — 📈 OPEN ${pos.asset} LONG`,
+    `🤖 <b>Claude Paper</b> — ${arrow} OPEN ${pos.asset} ${pos.side}`,
     `Entry $${fmtPx(pos.entryPrice)} · Notional $${pos.notionalUsd.toFixed(0)} × ${pos.leverage}× = $${(pos.notionalUsd * pos.leverage).toFixed(0)} expo`,
-    `Stop $${fmtPx(pos.initialStop)} (-${stopDistPct}%)`,
-    `TP1 $${fmtPx(pos.tp1Price)} (+${tp1Pct}%) · TP2 $${fmtPx(pos.tp2Price)} · TP3 $${fmtPx(pos.tp3Price)}`,
+    `Stop $${fmtPx(pos.initialStop)} (${isLong ? "-" : "+"}${stopDistPct}%)`,
+    `TP1 $${fmtPx(pos.tp1Price)} (${isLong ? "+" : "-"}${tp1Pct}%) · TP2 $${fmtPx(pos.tp2Price)} · TP3 $${fmtPx(pos.tp3Price)}`,
   ];
   await sendTelegram(lines.join("\n"), { parse_mode: "HTML" });
 }
@@ -110,7 +126,7 @@ function finalizeIfDone(pos: PaperPosition, p: PaperPortfolio, finalReason: Scal
     asset: pos.asset,
     exchange: pos.exchange,
     mode: pos.mode,
-    side: "LONG",
+    side: pos.side,
     openTs: pos.openTs,
     closedTs: Date.now(),
     entryPrice: pos.entryPrice,
@@ -129,8 +145,8 @@ function finalizeIfDone(pos: PaperPosition, p: PaperPortfolio, finalReason: Scal
 }
 
 async function recordSlice(pos: PaperPosition, fraction: number, price: number, reason: ScaleOutReason): Promise<ScaleOut> {
-  const r = computeR(pos.entryPrice, price, pos.initialStop);
-  const grossPnl = computeSlicePnl(pos.entryPrice, price, pos.notionalUsd, pos.leverage, fraction);
+  const r = computeR(pos.entryPrice, price, pos.initialStop, pos.side);
+  const grossPnl = computeSlicePnl(pos.entryPrice, price, pos.notionalUsd, pos.leverage, fraction, pos.side);
   // Net pnl: subtract round-trip fees for the closed fraction.
   const feePct = defaultTakerFeePct(pos.exchange);
   const fees = feesForSlice(pos.notionalUsd, fraction, feePct);
@@ -139,6 +155,28 @@ async function recordSlice(pos: PaperPosition, fraction: number, price: number, 
   pos.scaleOuts.push(slice);
   pos.remainingFraction = Math.max(0, pos.remainingFraction - fraction);
   return slice;
+}
+
+/**
+ * Side-aware "did the price reach this trigger?" check.
+ *
+ *   LONG  stop  → triggers when current ≤ stop
+ *   LONG  tp    → triggers when current ≥ tp
+ *   SHORT stop  → triggers when current ≥ stop  (stop sits ABOVE entry)
+ *   SHORT tp    → triggers when current ≤ tp    (tp sits BELOW entry)
+ *
+ * Exported so tests can exercise the state-machine logic in isolation —
+ * processOpenPositions itself wraps network calls and is not unit-friendly.
+ */
+export function triggered(
+  current: number,
+  target: number,
+  side: PaperPosition["side"],
+  kind: "stop" | "tp",
+): boolean {
+  const isLong = side === "LONG";
+  if (kind === "stop") return isLong ? current <= target : current >= target;
+  return isLong ? current >= target : current <= target;
 }
 
 async function processOpenPositions(p: PaperPortfolio): Promise<void> {
@@ -151,7 +189,7 @@ async function processOpenPositions(p: PaperPortfolio): Promise<void> {
       pos.lastChecked = Date.now();
 
       // Order of checks: stop first (worst case), then TPs in order, then horizon.
-      if (current <= pos.currentStop) {
+      if (triggered(current, pos.currentStop, pos.side, "stop")) {
         const slice = await recordSlice(pos, pos.remainingFraction, pos.currentStop, "stop");
         await postScaleOut(pos, slice);
         const trade = finalizeIfDone(pos, p, "stop");
@@ -160,17 +198,17 @@ async function processOpenPositions(p: PaperPortfolio): Promise<void> {
       }
 
       const tpsHit = pos.scaleOuts.filter((s) => s.reason === "tp1" || s.reason === "tp2" || s.reason === "tp3").length;
-      if (tpsHit === 0 && current >= pos.tp1Price) {
+      if (tpsHit === 0 && triggered(current, pos.tp1Price, pos.side, "tp")) {
         const slice = await recordSlice(pos, 0.5, pos.tp1Price, "tp1");
         pos.currentStop = pos.entryPrice;
         await postScaleOut(pos, slice);
       }
-      if (tpsHit <= 1 && current >= pos.tp2Price && pos.scaleOuts.find((s) => s.reason === "tp1")) {
+      if (tpsHit <= 1 && triggered(current, pos.tp2Price, pos.side, "tp") && pos.scaleOuts.find((s) => s.reason === "tp1")) {
         const slice = await recordSlice(pos, 0.3, pos.tp2Price, "tp2");
         pos.currentStop = pos.tp1Price;
         await postScaleOut(pos, slice);
       }
-      if (tpsHit <= 2 && current >= pos.tp3Price && pos.scaleOuts.find((s) => s.reason === "tp2")) {
+      if (tpsHit <= 2 && triggered(current, pos.tp3Price, pos.side, "tp") && pos.scaleOuts.find((s) => s.reason === "tp2")) {
         const slice = await recordSlice(pos, pos.remainingFraction, pos.tp3Price, "tp3");
         await postScaleOut(pos, slice);
         const trade = finalizeIfDone(pos, p, "tp3");
@@ -199,14 +237,20 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
   // them via 1×R progression if the trade plan didn't produce them.
   const openSymbols = new Set(p.openPositions.map((pos) => pos.symbol));
   const newOnes = signals.filter((s) => {
-    if (!s.fired || s.side !== "LONG") return false;
+    if (!s.fired) return false;
+    if (s.side !== "LONG" && s.side !== "SHORT") return false;
     if (s.stopPrice === null || s.tp1Price === null) return false;
     if (p.alreadyTradedSignalIds.includes(s.id)) return false;
-    // Defensive: a LONG stop must be strictly below entry, TP1 strictly
-    // above. Reject malformed signals so a bad scan doesn't cascade through
+    // Defensive: stop and TP1 must be on the directionally correct side of
+    // entry. Reject malformed signals so a bad scan doesn't cascade through
     // the state machine and force-fire all TPs in one tick.
-    if (s.stopPrice >= s.entryPrice) return false;
-    if (s.tp1Price <= s.entryPrice) return false;
+    if (s.side === "LONG") {
+      if (s.stopPrice >= s.entryPrice) return false;
+      if (s.tp1Price  <= s.entryPrice) return false;
+    } else {
+      if (s.stopPrice <= s.entryPrice) return false;
+      if (s.tp1Price  >= s.entryPrice) return false;
+    }
     // Belt-and-braces: scanner cooldown should already prevent same-symbol
     // re-fires, but if a signal sneaks through, never stack a second paper
     // position on a symbol that already has one open. Position correlation
@@ -215,34 +259,41 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
     return true;
   });
   for (const sig of newOnes) {
+    const side: PaperPosition["side"] = sig.side === "SHORT" ? "SHORT" : "LONG";
     const stop = sig.stopPrice!;
-    const oneR = sig.entryPrice - stop;
-    // Fallbacks: TP2 = entry + 2R, TP3 = entry + 3R if not provided.
-    // After fallbacks, sort the three by ascending price so the state machine
-    // ("TP3 requires TP2 hit") doesn't deadlock when a synthetic TP3 ends up
-    // below a plan-derived TP2 (happens when plan produced only 2 targets and
-    // one was a high-R:R pattern target).
+    const isLong = side === "LONG";
+    // 1R distance in price units; positive number regardless of side.
+    const oneR = Math.abs(sig.entryPrice - stop);
+    // Synthetic TP2/TP3 fallbacks: project N×R from entry in the favourable
+    // direction. After fallbacks, sort the three so the state machine
+    // ("TPn requires TP(n-1) hit") doesn't deadlock when synthetic TPs end
+    // up out-of-order with plan-derived ones.
+    //
+    //  LONG  : favourable = up    → ascending sort (closest TP first)
+    //  SHORT : favourable = down  → descending sort (closest TP first)
+    const tp2Default = isLong ? sig.entryPrice + 2 * oneR : sig.entryPrice - 2 * oneR;
+    const tp3Default = isLong ? sig.entryPrice + 3 * oneR : sig.entryPrice - 3 * oneR;
     const tpRaw = [
       sig.tp1Price!,
-      sig.tp2Price ?? sig.entryPrice + 2 * oneR,
-      sig.tp3Price ?? sig.entryPrice + 3 * oneR,
+      sig.tp2Price ?? tp2Default,
+      sig.tp3Price ?? tp3Default,
     ];
-    const sorted = tpRaw.slice().sort((a, b) => a - b);
+    const sorted = tpRaw.slice().sort((a, b) => (isLong ? a - b : b - a));
     const tp1 = sorted[0]!;
     const tp2 = sorted[1]!;
     const tp3 = sorted[2]!;
-    // Mode-aware sizing: spot positions size from account context (capped
-    // by the spot trade-plan cap, default 25% of account) rather than the
-    // legacy $50×20× MEXC convention. Sizing on the spot side is computed
-    // from initialCash × 0.25 so each tenant's paper book scales to its
-    // actual capital. MEXC paper stays on $50 × 20× for legacy parity.
+    // Mode/exchange-aware sizing:
+    //   spot                  → margin = min(cash, initialCash) × 0.25, leverage 1
+    //   blofin-futures        → margin = $50, leverage 5 (5× cheaper fees,
+    //                           so consistent risk-budget with smaller expo)
+    //   mexc-futures legacy   → margin = $50, leverage 20×
     const mode = sig.mode ?? "futures";
     const exchange = sig.exchange ?? "mexc-futures";
     const isSpot = mode === "spot";
     const notional = isSpot
       ? Math.min(p.cash, p.initialCash) * 0.25
       : NOTIONAL_PER_TRADE_DEFAULT;
-    const leverage = isSpot ? 1 : LEVERAGE_FUTURES_DEFAULT;
+    const leverage = isSpot ? 1 : defaultLeverage(exchange);
     const pos: PaperPosition = {
       id: sig.id,
       signalId: sig.id,
@@ -250,7 +301,7 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
       asset: sig.asset,
       exchange,
       mode,
-      side: "LONG",
+      side,
       openTs: sig.ts,
       entryPrice: sig.entryPrice,
       notionalUsd: notional,
@@ -368,4 +419,17 @@ async function main(): Promise<void> {
   process.stderr.write(`Done. cash $${p.cash.toFixed(2)} · open ${p.openPositions.length} · closed ${p.closedTrades.length}\n`);
 }
 
-main().catch((e) => { console.error(e); process.exit(1); });
+// Only run main() when invoked as a script — not when imported by a test
+// to exercise the `triggered` helper. argv[1] is the entry-point script.
+const isMain = (() => {
+  try {
+    const entry = process.argv[1] ?? "";
+    return entry.endsWith("/paper-trader.ts") || entry.endsWith("/paper-trader.js");
+  } catch {
+    return false;
+  }
+})();
+
+if (isMain) {
+  main().catch((e) => { console.error(e); process.exit(1); });
+}
