@@ -11,40 +11,68 @@
  */
 
 import pc from "picocolors";
-import { getBalances } from "../src/clients/blofin-private.js";
+import { signRequest } from "../src/clients/blofin-private.js";
+import { fetchJson } from "../src/http.js";
 
-async function main(): Promise<void> {
-  process.stdout.write(pc.bold("Blofin auth smoke — futures balances\n\n"));
-  let rows;
-  try {
-    rows = await getBalances("futures");
-  } catch (e) {
-    process.stderr.write(pc.red(`auth failed: ${e instanceof Error ? e.message : e}\n`));
-    process.exit(1);
-  }
+const BASE = "https://openapi.blofin.com";
 
-  if (rows.length === 0) {
-    process.stdout.write(pc.dim("  (account has no balance rows — fund USDT to start trading)\n"));
-    return;
-  }
+interface Row { currency: string; balance: string; available: string; frozen: string }
+interface Env { code: string; msg: string; data: Row[] }
 
-  // Show non-zero balances first; zeros at the end if present.
+async function fetchAccount(accountType: "spot" | "futures"): Promise<Row[]> {
+  const path = `/api/v1/asset/balances?accountType=${accountType}`;
+  const env = await fetchJson<Env>(`${BASE}${path}`, { headers: signRequest("GET", path) });
+  if (env.code !== "0") throw new Error(`code=${env.code} msg=${env.msg}`);
+  return env.data ?? [];
+}
+
+function renderNonZero(label: string, rows: Row[]): number {
   const sorted = rows.slice().sort((a, b) => Number(b.balance) - Number(a.balance));
-  let nonZero = 0;
+  let n = 0;
   for (const r of sorted) {
     const bal = Number(r.balance);
     const avail = Number(r.available);
     const frozen = Number(r.frozen);
     if (bal === 0 && avail === 0 && frozen === 0) continue;
+    if (n === 0) process.stdout.write(pc.bold(`  ${label}:\n`));
     process.stdout.write(
-      `  ${r.currency.padEnd(8)}  balance=${bal.toFixed(6)}  available=${avail.toFixed(6)}  frozen=${frozen.toFixed(6)}\n`,
+      `    ${r.currency.padEnd(8)}  balance=${bal.toFixed(6)}  available=${avail.toFixed(6)}  frozen=${frozen.toFixed(6)}\n`,
     );
-    nonZero++;
+    n++;
   }
-  if (nonZero === 0) {
-    process.stdout.write(pc.dim(`  (${rows.length} rows, all zero — fund USDT to start trading)\n`));
-  } else {
-    process.stdout.write("\n" + pc.green(`  ✓ auth pipeline verified — ${nonZero} non-zero balance row(s)\n`));
+  return n;
+}
+
+async function main(): Promise<void> {
+  process.stdout.write(pc.bold("Blofin auth smoke — balances (spot + futures)\n\n"));
+  let spot: Row[] = [];
+  let futures: Row[] = [];
+  try {
+    [spot, futures] = await Promise.all([fetchAccount("spot"), fetchAccount("futures")]);
+  } catch (e) {
+    process.stderr.write(pc.red(`auth failed: ${e instanceof Error ? e.message : e}\n`));
+    process.exit(1);
+  }
+
+  const spotN = renderNonZero("Spot wallet", spot);
+  const futN = renderNonZero("Futures wallet", futures);
+
+  if (spotN + futN === 0) {
+    process.stdout.write(pc.dim("  (no non-zero balances on either account)\n"));
+  }
+  process.stdout.write("\n" + pc.green("  ✓ auth pipeline verified\n"));
+
+  // Friendly nudge if funds are on the wrong side for trading our top-10
+  // USDT-margined perps.
+  const spotUsdc = spot.find((r) => r.currency === "USDC" && Number(r.balance) > 0);
+  const futUsdt = futures.find((r) => r.currency === "USDT" && Number(r.balance) > 0);
+  if (spotUsdc && !futUsdt) {
+    process.stdout.write("\n" + pc.yellow(
+      "  ⚠ USDC sits on spot, futures USDT is empty.\n" +
+      "  ⚠ For live trading on USDT-margined perps: Convert USDC→USDT (spot)\n" +
+      "  ⚠ then Transfer USDT from spot → futures wallet in the Blofin app.\n" +
+      "  ⚠ Paper-trading does NOT require this — public prices are enough.\n",
+    ));
   }
 }
 
