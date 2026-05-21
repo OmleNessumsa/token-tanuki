@@ -324,10 +324,15 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
 async function maybePostDailySummary(p: PaperPortfolio): Promise<void> {
   const today = new Date().toISOString().slice(0, 10);
   if (p.lastDailySummary === today) return;
-  // Fire at 07:00 UTC ± 10 min (= 09:00 NL CEST / 08:00 NL CET — "ochtend").
+  // Fire at the FIRST tick after 07:00 UTC each day — at-most-once via the
+  // lastDailySummary lookup. Originally a strict 07:00 ± 10 min window, but
+  // macOS launchd doesn't replay ticks missed during sleep, so a Mac sleeping
+  // past 07:10 UTC silently lost the morning report. Now any tick between
+  // 07:00 and 12:00 UTC (= 09:00–14:00 NL summer / 08:00–13:00 winter) will
+  // post — late wake-ups still get the report, multi-day sleeps cap at noon
+  // so a Mac woken at 18:00 doesn't post a stale "ochtend" message.
   const hour = new Date().getUTCHours();
-  const minute = new Date().getUTCMinutes();
-  if (hour !== 7 || minute > 10) return;
+  if (hour < 7 || hour >= 12) return;
 
   // Fetch live prices for open positions to compute unrealized P&L
   const livePrices: Record<string, number> = {};
