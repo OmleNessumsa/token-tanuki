@@ -197,6 +197,7 @@ async function main(): Promise<void> {
         accountUsd: 1000, // notional reference; paper-trader scales by tenant cash
         leverage: 1,
         mode: "spot",
+        minStopDistancePct: 1.5,
       });
       if (!plan || !a.perpSymbol || !a.ticker) {
         process.stdout.write(`  ${pc.dim(`skip ${a.perpSymbol}: no plan`)}\n`);

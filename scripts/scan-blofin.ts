@@ -229,6 +229,10 @@ async function main(): Promise<void> {
         accountUsd: 1000,
         leverage,
         mode: "futures",
+        // Sub-1.5% stops on 5m-scanner alt fires got whipsawed in 5 of 6 paper
+        // SHORTs (May 22-25). The one winner (DOT, +2.27R) had the only ≥1.5%
+        // stop. Floor the rest to the same distance.
+        minStopDistancePct: 1.5,
       });
       if (!plan || !a.perpSymbol || !a.ticker) {
         process.stdout.write(`  ${pc.dim(`skip ${a.perpSymbol}: no plan`)}\n`);

@@ -29,7 +29,7 @@ export interface TradePlan {
   side: "LONG" | "SHORT";
   /** Entry zone — limit-order range, not market price */
   entry: { ideal: number; max: number };
-  stop: { price: number; distancePct: number; method: "structure" | "atr" | "liq-cap" };
+  stop: { price: number; distancePct: number; method: "structure" | "atr" | "liq-cap" | "floor" };
   /** Spot plans set this to a sentinel ({ price: 0, bufferPct: 100, usable: true }). */
   liquidation: { price: number; bufferPct: number; usable: boolean };
   targets: Array<{ price: number; rr: number; rationale: string }>;
@@ -59,6 +59,13 @@ export interface TradePlanInput {
   liqFeeBufferPct?: number;
   /** Spot-mode cap on notional as % of equity. Default 25 (no all-in trades). */
   spotMaxPositionPctOfEquity?: number;
+  /**
+   * Minimum stop distance as % of entry. If structure/ATR pick a tighter stop,
+   * it gets widened to this floor. Default 0 (no floor — preserves legacy
+   * behavior). Set to 1.5 on noisy 5m-scanner flows where sub-1% stops get
+   * whipsawed by routine spread/wick noise before the thesis plays out.
+   */
+  minStopDistancePct?: number;
 }
 
 const DEFAULTS = {
@@ -139,7 +146,7 @@ export function generateTradePlan(input: TradePlanInput): TradePlan | null {
 
   // Pick the tighter (closer to entry) of the two — but only if structure passes the side check.
   let stopPrice: number;
-  let stopMethod: "structure" | "atr" | "liq-cap";
+  let stopMethod: TradePlan["stop"]["method"];
   if (validStructure && pctDistance(currentPrice, structurePrice!) < pctDistance(currentPrice, atrStopPrice)) {
     stopPrice = structurePrice!;
     stopMethod = "structure";
@@ -154,6 +161,22 @@ export function generateTradePlan(input: TradePlanInput): TradePlan | null {
   if (!isLong && stopPrice <= currentPrice) return null;
 
   let stopDistancePct = pctDistance(currentPrice, stopPrice);
+
+  // Minimum stop floor — widens noise-distance stops (sub-1% on volatile alts
+  // gets eaten by routine wicks before the move resolves). Applied BEFORE the
+  // liq-cap check so a too-wide floor still triggers leverage reduction.
+  const minStopPct = input.minStopDistancePct ?? 0;
+  if (minStopPct > 0 && stopDistancePct < minStopPct) {
+    const flooredStopPrice = isLong
+      ? currentPrice * (1 - minStopPct / 100)
+      : currentPrice * (1 + minStopPct / 100);
+    warnings.push(
+      `${stopMethod} stop ${stopDistancePct.toFixed(2)}% < min ${minStopPct.toFixed(2)}% — widened to floor`,
+    );
+    stopPrice = flooredStopPrice;
+    stopDistancePct = minStopPct;
+    stopMethod = "floor";
+  }
 
   // Liquidation budget check (futures-only — spot has no liquidation)
   let leverage = requestedLeverage;
