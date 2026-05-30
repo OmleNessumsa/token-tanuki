@@ -51,14 +51,23 @@ export const COINBASE_ACTIVE_ASSETS: readonly string[] = [
 ] as const;
 
 /**
- * Blofin perpetual futures top-10 (USDT-quoted). Symbol format is `BASE-USDT`,
- * matching Blofin's instId convention. Same asset set as Coinbase for apples-
- * to-apples comparison — but on a futures exchange we get leverage, shorts,
- * and ~20× lower fees (0.06% taker vs 1.20% on Coinbase Intro 1).
+ * Blofin perpetual futures universe (USDT-quoted). Symbol format is
+ * `BASE-USDT`, matching Blofin's instId convention. On a futures exchange we
+ * get leverage, shorts, and ~20× lower fees (0.06% taker vs 1.20% on Coinbase
+ * Intro 1).
+ *
+ * Curation (2026-05-30): expanded from top-10 to top-30 to grow signal volume
+ * while keeping signal quality. Curated by hand against Blofin's live
+ * perp list — pure volume-ranked top-30 was dominated by meme/shitcoin
+ * volume anomalies (PEPE/SHIB/BONK/NOM/JCT/etc.) where 1.5% stops can't
+ * even clear the bid-ask spread. Memes and tail-coins get their own
+ * scanner loop on the backlog (see CB-8). Composition: 10 majors + 4
+ * large-cap stalwarts + 7 L1s + 2 L2s + 4 DeFi + 3 storage/AI.
  *
  * MATIC is aliased to POL inside blofin.ts (Polygon rebrand).
  */
-export const BLOFIN_TOP10_PERP: readonly string[] = [
+export const BLOFIN_TOP30_PERP: readonly string[] = [
+  // Majors (original top-10)
   "BTC-USDT",
   "ETH-USDT",
   "SOL-USDT",
@@ -69,17 +78,46 @@ export const BLOFIN_TOP10_PERP: readonly string[] = [
   "LINK-USDT",
   "DOT-USDT",
   "POL-USDT",       // formerly MATIC
+  // Large-cap stalwarts
+  "TRX-USDT",
+  "BCH-USDT",
+  "LTC-USDT",
+  "XLM-USDT",
+  // L1s
+  "SUI-USDT",
+  "TIA-USDT",
+  "APT-USDT",
+  "NEAR-USDT",
+  "ATOM-USDT",
+  "SEI-USDT",
+  "HBAR-USDT",
+  // L2s
+  "ARB-USDT",
+  "OP-USDT",
+  // DeFi
+  "UNI-USDT",
+  "AAVE-USDT",
+  "INJ-USDT",
+  "LDO-USDT",
+  // Storage / AI
+  "FIL-USDT",
+  "FET-USDT",
+  "TAO-USDT",
 ] as const;
 
-export const BLOFIN_TOP10_ASSETS: readonly string[] = [
+export const BLOFIN_TOP30_ASSETS: readonly string[] = [
   "BTC", "ETH", "SOL", "XRP", "DOGE", "ADA", "AVAX", "LINK", "DOT", "POL",
+  "TRX", "BCH", "LTC", "XLM",
+  "SUI", "TIA", "APT", "NEAR", "ATOM", "SEI", "HBAR",
+  "ARB", "OP",
+  "UNI", "AAVE", "INJ", "LDO",
+  "FIL", "FET", "TAO",
 ] as const;
 
 /**
- * Subset Blofin is allowed to auto-fire on. We start with ALL of top-10 active
- * — we don't have Blofin forward-test data yet, and the Coinbase blacklist
- * (BTC/XRP/DOT/AVAX/POL) was driven by Coinbase-spot fee economics, not by
- * the underlying asset's setup quality. Re-evaluate after ~30 closed Blofin
- * paper trades.
+ * Subset Blofin is allowed to auto-fire on. Top-30 active by default — we
+ * curated this list (no memes/shitcoins) so every entry is fire-eligible.
+ * Re-evaluate after ~30 closed Blofin paper trades; suspend any asset
+ * with WR <20% over n ≥ 5.
  */
-export const BLOFIN_ACTIVE_ASSETS: readonly string[] = BLOFIN_TOP10_ASSETS;
+export const BLOFIN_ACTIVE_ASSETS: readonly string[] = BLOFIN_TOP30_ASSETS;

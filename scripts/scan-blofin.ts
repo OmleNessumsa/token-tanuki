@@ -1,6 +1,6 @@
 /**
- * One-shot Blofin top-10 scanner. Runs the multi-TF futures pipeline against
- * the Blofin perpetual adapter for each asset in BLOFIN_TOP10_ASSETS, then
+ * One-shot Blofin top-30 scanner. Runs the multi-TF futures pipeline against
+ * the Blofin perpetual adapter for each asset in BLOFIN_TOP30_ASSETS, then
  * prints a compact table.
  *
  * Different from scan-coinbase:
@@ -10,7 +10,8 @@
  *   - Stage 2 gate: LONG requires stage2=true, SHORT requires stage2=false
  *     (symmetric "trend regime aligned" check). Override with
  *     --allow-non-stage2.
- *   - Asset universe: BLOFIN_ACTIVE_ASSETS (initially all top-10).
+ *   - Asset universe: BLOFIN_ACTIVE_ASSETS (curated top-30 — 10 majors +
+ *     stalwarts + L1s + L2s + DeFi + AI; memes/tail-coins excluded).
  *
  * Run:
  *   npx tsx scripts/scan-blofin.ts                       # dry-run
@@ -24,7 +25,7 @@ import { analyzeFutures, type FuturesAnalysis } from "../src/analyze-futures.js"
 import { generateTradePlan } from "../src/analysis/trade-plan.js";
 import { blofinFuturesAdapter } from "../src/clients/blofin-adapter.js";
 import { appendSignal, isOnCooldown, readSignals } from "../src/signal-log.js";
-import { BLOFIN_ACTIVE_ASSETS, BLOFIN_TOP10_ASSETS } from "../src/whitelist.js";
+import { BLOFIN_ACTIVE_ASSETS, BLOFIN_TOP30_ASSETS } from "../src/whitelist.js";
 
 const DEFAULT_COOLDOWN_HOURS = 6;
 const DEFAULT_LEVERAGE = 5;
@@ -96,12 +97,12 @@ async function main(): Promise<void> {
   const allowNonStage2 = process.argv.includes("--allow-non-stage2");
 
   const started = Date.now();
-  process.stdout.write(pc.bold("Scanning Blofin top-10 perps — multi-TF (5m/15m/1h/4h/1d)\n"));
+  process.stdout.write(pc.bold(`Scanning Blofin top-${BLOFIN_TOP30_ASSETS.length} perps — multi-TF (5m/15m/1h/4h/1d)\n`));
   if (fire) {
     process.stdout.write(
       pc.dim(
         `Fire mode: ${minConfidence}+ LONG/SHORT · stage gate=${allowNonStage2 ? "off" : "on"} · ` +
-          `assets=${allowAllAssets ? "top-10" : BLOFIN_ACTIVE_ASSETS.join("+")} · ` +
+          `assets=${allowAllAssets ? `top-${BLOFIN_TOP30_ASSETS.length}` : BLOFIN_ACTIVE_ASSETS.join("+")} · ` +
           `cooldown=${cooldownHours}h · leverage=${leverage}×\n`,
       ),
     );
@@ -109,12 +110,13 @@ async function main(): Promise<void> {
   process.stdout.write("\n");
 
   // Concurrency cap — Blofin allows 500 req/min IP but each asset takes
-  // ~7 calls (5 klines + 1 ticker + 1 funding), so 3-at-a-time keeps us
-  // well below.
-  const CONCURRENCY = 3;
+  // ~7 calls (5 klines + 1 ticker + 1 funding). At 30 assets × 7 calls = 210
+  // calls per scan. With CONCURRENCY=5 that's 6 sequential batches of 35
+  // calls each — well under the 500/min cap and finishes in ~5-8s.
+  const CONCURRENCY = 5;
   const results: FuturesAnalysis[] = [];
-  for (let i = 0; i < BLOFIN_TOP10_ASSETS.length; i += CONCURRENCY) {
-    const batch = BLOFIN_TOP10_ASSETS.slice(i, i + CONCURRENCY);
+  for (let i = 0; i < BLOFIN_TOP30_ASSETS.length; i += CONCURRENCY) {
+    const batch = BLOFIN_TOP30_ASSETS.slice(i, i + CONCURRENCY);
     const out = await Promise.all(
       batch.map(async (asset) => {
         try {
@@ -185,9 +187,10 @@ async function main(): Promise<void> {
   const flats  = ranked.filter((a) => a.verdict?.side === "FLAT");
   process.stdout.write("\n");
   process.stdout.write(pc.bold("Summary:") + "\n");
-  process.stdout.write(`  LONG signals  : ${longs.length}/10\n`);
-  process.stdout.write(`  SHORT signals : ${shorts.length}/10\n`);
-  process.stdout.write(`  FLAT          : ${flats.length}/10\n`);
+  const universe = BLOFIN_TOP30_ASSETS.length;
+  process.stdout.write(`  LONG signals  : ${longs.length}/${universe}\n`);
+  process.stdout.write(`  SHORT signals : ${shorts.length}/${universe}\n`);
+  process.stdout.write(`  FLAT          : ${flats.length}/${universe}\n`);
   process.stdout.write(pc.dim(`  scan elapsed  : ${elapsed}s\n`));
 
   // Fire signals to log on demand (read-only otherwise).
