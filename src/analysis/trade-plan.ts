@@ -66,6 +66,14 @@ export interface TradePlanInput {
    * whipsawed by routine spread/wick noise before the thesis plays out.
    */
   minStopDistancePct?: number;
+  /**
+   * Maximum stop distance as % of entry. If structure/ATR pick a wider stop
+   * the plan is **refused** (returns null). Default 0 (no cap). Set to ~4 on
+   * scanner flows to skip post-pump entries where ATR explodes — entering a
+   * long on a +20% coin with a 9% stop creates a 2-3R loss-budget hit that
+   * destroys expectancy even with risk-normalized sizing.
+   */
+  maxStopDistancePct?: number;
 }
 
 const DEFAULTS = {
@@ -161,6 +169,16 @@ export function generateTradePlan(input: TradePlanInput): TradePlan | null {
   if (!isLong && stopPrice <= currentPrice) return null;
 
   let stopDistancePct = pctDistance(currentPrice, stopPrice);
+
+  // Maximum stop gate — refuse plans whose ATR/structure stop is past the cap.
+  // Triggers on post-pump entries (price extended → ATR explodes → stop sits
+  // 6-9% away). Even with risk-normalized sizing, those trades destroy
+  // expectancy because mean-reversion eats the stop fast. Refuse rather than
+  // clamp: a coin too volatile for our risk-budget shouldn't be traded.
+  const maxStopPct = input.maxStopDistancePct ?? 0;
+  if (maxStopPct > 0 && stopDistancePct > maxStopPct) {
+    return null;
+  }
 
   // Minimum stop floor — widens noise-distance stops (sub-1% on volatile alts
   // gets eaten by routine wicks before the move resolves). Applied BEFORE the

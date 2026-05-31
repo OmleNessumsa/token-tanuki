@@ -48,7 +48,16 @@ function defaultLeverage(exchange: string | undefined): number {
   return 20; // mexc-futures legacy
 }
 
-const NOTIONAL_PER_TRADE_DEFAULT = 50;
+/**
+ * Tharp % risk: notional sized so that a -1R loss equals
+ * `initialCash × RISK_PCT_PER_TRADE` regardless of stop-distance. Old code
+ * used a flat $50 notional, which made -1R losses on wide-stop trades 2-3×
+ * too big (XLM losses of $24 each instead of the intended $10) because PnL
+ * on a stop scales linearly with stop-distance at fixed notional/leverage.
+ */
+const RISK_PCT_PER_TRADE = 0.01; // 1% of initial cash → $10 risk on $1000 acct
+const MAX_NOTIONAL_PCT_OF_CASH = 0.25; // safety cap for very tight stops
+const SPOT_NOTIONAL_PCT_OF_CASH = 0.25;
 const HORIZON_DAYS = 7;
 const SLEEP_BETWEEN_CHECKS_MS = 600;
 
@@ -283,17 +292,24 @@ async function openNewPositions(p: PaperPortfolio): Promise<void> {
     const tp2 = sorted[1]!;
     const tp3 = sorted[2]!;
     // Mode/exchange-aware sizing:
-    //   spot                  → margin = min(cash, initialCash) × 0.25, leverage 1
-    //   blofin-futures        → margin = $50, leverage 5 (5× cheaper fees,
-    //                           so consistent risk-budget with smaller expo)
-    //   mexc-futures legacy   → margin = $50, leverage 20×
+    //   spot     → margin = min(cash, initialCash) × SPOT_NOTIONAL_PCT, lev 1
+    //   futures  → notional = riskUsd / (leverage × stopDistPct), capped at
+    //              MAX_NOTIONAL_PCT_OF_CASH × cash so a sub-1% stop can't
+    //              size the trade to 5× equity.
     const mode = sig.mode ?? "futures";
     const exchange = sig.exchange ?? "mexc-futures";
     const isSpot = mode === "spot";
-    const notional = isSpot
-      ? Math.min(p.cash, p.initialCash) * 0.25
-      : NOTIONAL_PER_TRADE_DEFAULT;
     const leverage = isSpot ? 1 : defaultLeverage(exchange);
+    const stopDistPct = Math.abs(sig.entryPrice - stop) / sig.entryPrice;
+    let notional: number;
+    if (isSpot) {
+      notional = Math.min(p.cash, p.initialCash) * SPOT_NOTIONAL_PCT_OF_CASH;
+    } else {
+      const riskUsd = p.initialCash * RISK_PCT_PER_TRADE;
+      const idealNotional = riskUsd / (leverage * stopDistPct);
+      const cap = p.cash * MAX_NOTIONAL_PCT_OF_CASH;
+      notional = Math.min(idealNotional, cap);
+    }
     const pos: PaperPosition = {
       id: sig.id,
       signalId: sig.id,

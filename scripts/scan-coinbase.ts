@@ -198,6 +198,7 @@ async function main(): Promise<void> {
         leverage: 1,
         mode: "spot",
         minStopDistancePct: 1.5,
+        maxStopDistancePct: 4.0,
       });
       if (!plan || !a.perpSymbol || !a.ticker) {
         process.stdout.write(`  ${pc.dim(`skip ${a.perpSymbol}: no plan`)}\n`);

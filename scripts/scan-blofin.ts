@@ -24,11 +24,16 @@ import pc from "picocolors";
 import { analyzeFutures, type FuturesAnalysis } from "../src/analyze-futures.js";
 import { generateTradePlan } from "../src/analysis/trade-plan.js";
 import { blofinFuturesAdapter } from "../src/clients/blofin-adapter.js";
+import { loadPortfolio } from "../src/paper-portfolio.js";
+import type { PaperTrade } from "../src/paper-portfolio.js";
 import { appendSignal, isOnCooldown, readSignals } from "../src/signal-log.js";
 import { BLOFIN_ACTIVE_ASSETS, BLOFIN_TOP30_ASSETS } from "../src/whitelist.js";
 
 const DEFAULT_COOLDOWN_HOURS = 6;
 const DEFAULT_LEVERAGE = 5;
+/** Drawdown circuit-breaker: ≥N stop-outs on the same asset within window → suspend. */
+const DRAWDOWN_STOPS_THRESHOLD = 2;
+const DRAWDOWN_WINDOW_HOURS = 48;
 
 function parseNumericFlag(argv: readonly string[], flag: string, def: number): number {
   const idx = argv.indexOf(flag);
@@ -70,6 +75,24 @@ function fmtPrice(n: number | undefined): string {
   if (n >= 1000) return `$${n.toFixed(2)}`;
   if (n >= 1) return `$${n.toFixed(4)}`;
   return `$${n.toFixed(6)}`;
+}
+
+/**
+ * Per-asset drawdown circuit breaker.
+ *
+ * Counts stop-out closes for `asset` within the last `windowMs` milliseconds.
+ * A "stop-out" is a closed trade whose final exit reason is "stop". When the
+ * count hits `threshold`, the asset is suspended — paper-trader keeps
+ * managing existing positions but the scanner stops opening new ones until
+ * the window expires.
+ *
+ * Motivation: 3 XLM longs (May 30-31, 2026) re-entered every 6-22h on a
+ * failing post-pump thesis; all stopped out. Cooldown prevents same-tick
+ * re-fires but doesn't prevent tunnel-vision into a broken setup.
+ */
+function recentStopCount(trades: readonly PaperTrade[], asset: string, windowMs: number): number {
+  const cutoff = Date.now() - windowMs;
+  return trades.filter((t) => t.asset === asset && t.closedTs >= cutoff && t.finalExitReason === "stop").length;
 }
 
 /**
@@ -196,7 +219,9 @@ async function main(): Promise<void> {
   // Fire signals to log on demand (read-only otherwise).
   if (fire) {
     const existingRecords = readSignals();
+    const portfolio = loadPortfolio();
     const cooldownMs = cooldownHours * 3600 * 1000;
+    const drawdownWindowMs = DRAWDOWN_WINDOW_HOURS * 3600 * 1000;
     const activeSet = new Set(BLOFIN_ACTIVE_ASSETS);
     const eligible = ranked.filter(
       (a) =>
@@ -227,6 +252,13 @@ async function main(): Promise<void> {
         );
         continue;
       }
+      const recentStops = recentStopCount(portfolio.closedTrades, a.asset, drawdownWindowMs);
+      if (recentStops >= DRAWDOWN_STOPS_THRESHOLD) {
+        process.stdout.write(
+          `  ${pc.dim(`skip ${a.perpSymbol}: drawdown-suspended (${recentStops} stop-outs in last ${DRAWDOWN_WINDOW_HOURS}h)`)}\n`,
+        );
+        continue;
+      }
       const plan = generateTradePlan({
         analysis: a,
         accountUsd: 1000,
@@ -236,6 +268,11 @@ async function main(): Promise<void> {
         // SHORTs (May 22-25). The one winner (DOT, +2.27R) had the only ≥1.5%
         // stop. Floor the rest to the same distance.
         minStopDistancePct: 1.5,
+        // Stops > 4% mean ATR has exploded (post-pump / post-crash regime).
+        // Three XLM longs (May 30-31) fired with 6-10% stops right after a
+        // +23.55% pump and all stopped out within 24h. Refuse those plans
+        // entirely — a coin too volatile for our risk-budget isn't tradeable.
+        maxStopDistancePct: 4.0,
       });
       if (!plan || !a.perpSymbol || !a.ticker) {
         process.stdout.write(`  ${pc.dim(`skip ${a.perpSymbol}: no plan`)}\n`);

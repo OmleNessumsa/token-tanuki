@@ -184,3 +184,110 @@ describe("generateTradePlan — minStopDistancePct floor", () => {
     }
   });
 });
+
+/**
+ * Build a stub whose ATR is wide enough that the structure/ATR stop will
+ * land past 5% of entry. Used to verify the maxStopDistancePct gate refuses
+ * post-pump-style entries.
+ */
+function stubWideAtr(opts: { side: "LONG" | "SHORT"; price: number }): FuturesAnalysis {
+  const { side, price } = opts;
+  const mkCandles = (): Candle[] => {
+    const out: Candle[] = [];
+    // h-l range ≈ 10% of price → ATR ≈ 0.1 × price → 2×ATR stop ≈ 20%.
+    for (let i = 0; i < 200; i++) {
+      const drift = (i - 100) * 0.001 * price;
+      const p = price + drift;
+      const tick = price * 0.05;
+      out.push({ t: 1700000000 + i * 3600, o: p - tick / 2, h: p + tick, l: p - tick, c: p, v: 1000 });
+    }
+    return out;
+  };
+  const candles = mkCandles();
+  const chart = {
+    score: 60,
+    trend: (side === "LONG" ? "up" : "down") as "up" | "down",
+    rsi: 55,
+    rsiDivergence: null as null,
+    breakout: null as null,
+    candlePatterns: [],
+    chartPatterns: [],
+    stage2: side === "LONG",
+  };
+  const dir = side === "LONG" ? "bullish" : "bearish";
+  return {
+    asset: "XLM",
+    exchangeId: "blofin-futures",
+    perpSymbol: "XLM-USDT",
+    ticker: {
+      symbol: "XLM-USDT",
+      lastPrice: price,
+      bid: price,
+      ask: price,
+      volume24Quote: 1_000_000,
+      high24: price * 1.25,
+      low24: price * 0.95,
+      riseFallRate: 0.235,
+      timestamp: Date.now(),
+    },
+    funding: null,
+    intermarket: { regime: "neutral", description: "neutral", btcDailyChangePct: 0, btcDominanceTrend: "flat" } as FuturesAnalysis["intermarket"],
+    trendTemplate: null,
+    timeframes: [
+      { timeframe: "5m", candles, chart, direction: dir },
+      { timeframe: "15m", candles, chart, direction: dir },
+      { timeframe: "1h", candles, chart, direction: dir },
+      { timeframe: "4h", candles, chart, direction: dir },
+      { timeframe: "1d", candles, chart, direction: dir },
+    ],
+    confluence: { htfDirection: dir, ltfDirection: dir, aligned: true, score: 70, summary: "ALIGNED" },
+    verdict: { side, confidence: "high", reasons: [], caveats: [] },
+    naturalSide: side,
+    stage2: side === "LONG",
+  };
+}
+
+describe("generateTradePlan — maxStopDistancePct gate (post-pump refusal)", () => {
+  it("refuses a LONG plan when the stop sits past the max", () => {
+    const plan = generateTradePlan({
+      analysis: stubWideAtr({ side: "LONG", price: 0.257 }),
+      accountUsd: 1000,
+      leverage: 5,
+      maxStopDistancePct: 4.0,
+    });
+    expect(plan).toBeNull();
+  });
+
+  it("refuses a SHORT plan when the stop sits past the max", () => {
+    const plan = generateTradePlan({
+      analysis: stubWideAtr({ side: "SHORT", price: 0.257 }),
+      accountUsd: 1000,
+      leverage: 5,
+      maxStopDistancePct: 4.0,
+    });
+    expect(plan).toBeNull();
+  });
+
+  it("allows a plan whose floored stop sits within the max", () => {
+    // Floor widens to 1.5%, well under the 4% cap → plan should still come back.
+    const plan = generateTradePlan({
+      analysis: stubTightAtr({ side: "LONG", price: 80_000 }),
+      accountUsd: 1000,
+      leverage: 5,
+      minStopDistancePct: 1.5,
+      maxStopDistancePct: 4.0,
+    });
+    expect(plan).not.toBeNull();
+    expect(plan!.stop.distancePct).toBeLessThanOrEqual(4.0);
+  });
+
+  it("default (no maxStopDistancePct) preserves wide-stop plans", () => {
+    const plan = generateTradePlan({
+      analysis: stubWideAtr({ side: "LONG", price: 0.257 }),
+      accountUsd: 1000,
+      leverage: 5,
+    });
+    expect(plan).not.toBeNull();
+    expect(plan!.stop.distancePct).toBeGreaterThan(4.0);
+  });
+});
