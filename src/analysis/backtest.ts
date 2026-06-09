@@ -25,7 +25,7 @@ export interface BacktestTrade {
   rMultiple: number;
   exitReason: "stop" | "horizon";
   composite: number;
-  side: "LONG";
+  side: "LONG" | "SHORT";
 }
 
 export interface BacktestStats {
@@ -58,6 +58,8 @@ export interface BacktestConfig {
   requireStage2?: boolean;
   /** SMA period for Stage 2 filter. 150 daily bars ≈ 30 weeks. */
   stage2SmaPeriod?: number;
+  /** Direction filter. Defaults to "LONG" to preserve legacy behavior. */
+  side?: "LONG" | "SHORT";
 }
 
 const DEFAULT_CONFIG: BacktestConfig = {
@@ -96,27 +98,42 @@ export function runStrategyOnSeries(
   const stage2Period = config.stage2SmaPeriod ?? 150;
   const closes = candles.map((c) => c.c);
   const smaSeries = config.requireStage2 ? sma(closes, stage2Period) : null;
+  const side: "LONG" | "SHORT" = config.side ?? "LONG";
+  const isShort = side === "SHORT";
   let lastEntryIdx = -Infinity;
 
   for (let i = config.warmupBars; i < candles.length - config.horizonBars; i++) {
     if (i - lastEntryIdx < config.cooldownBars) continue;
 
     const score = scoreAtBar(candles, i);
-    // LONG only — score above threshold AND not in clear downtrend
     if (score.score < config.thresholdComposite) continue;
-    if (score.trend === "down") continue;
+    if (isShort) {
+      // SHORT: directional gate inverted — require down trend.
+      if (score.trend !== "down") continue;
+    } else {
+      // LONG: existing behavior — reject clear downtrend.
+      if (score.trend === "down") continue;
+    }
     if (config.requireBreakout && !score.hasBreakout) continue;
     if (smaSeries) {
       const smaIdx = i - (stage2Period - 1);
       const smaValue = smaIdx >= 0 ? smaSeries[smaIdx] : undefined;
-      if (smaValue === undefined || candles[i]!.c <= smaValue) continue;
+      if (smaValue === undefined) continue;
+      if (isShort) {
+        // SHORT stage-2 = close BELOW SMA (downtrend regime, Stage 4 in Weinstein terms).
+        if (candles[i]!.c >= smaValue) continue;
+      } else {
+        if (candles[i]!.c <= smaValue) continue;
+      }
     }
 
     const entryPrice = candles[i]!.c;
     const atrIdx = i - 1; // ATR series starts at index 14, so atrSeries[i - 14] for bar i
     const atrValue = atrSeries[Math.max(0, atrIdx - 14)] ?? 0;
     if (atrValue <= 0) continue;
-    const stopPrice = entryPrice - config.stopAtrMult * atrValue;
+    const stopPrice = isShort
+      ? entryPrice + config.stopAtrMult * atrValue
+      : entryPrice - config.stopAtrMult * atrValue;
     if (stopPrice <= 0) continue;
 
     // Walk forward: hit stop → exit at stop. Else exit at horizon close.
@@ -126,7 +143,8 @@ export function runStrategyOnSeries(
 
     for (let j = i + 1; j <= i + config.horizonBars; j++) {
       const bar = candles[j]!;
-      if (bar.l <= stopPrice) {
+      const stopHit = isShort ? bar.h >= stopPrice : bar.l <= stopPrice;
+      if (stopHit) {
         exitIdx = j;
         exitPrice = stopPrice;
         exitReason = "stop";
@@ -134,8 +152,8 @@ export function runStrategyOnSeries(
       }
     }
 
-    const initialRisk = entryPrice - stopPrice;
-    const realizedPnl = exitPrice - entryPrice;
+    const initialRisk = isShort ? stopPrice - entryPrice : entryPrice - stopPrice;
+    const realizedPnl = isShort ? entryPrice - exitPrice : exitPrice - entryPrice;
     const rMultiple = realizedPnl / initialRisk;
 
     trades.push({
@@ -147,7 +165,7 @@ export function runStrategyOnSeries(
       rMultiple,
       exitReason,
       composite: score.score,
-      side: "LONG",
+      side,
     });
 
     lastEntryIdx = i;
