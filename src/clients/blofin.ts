@@ -106,16 +106,58 @@ export async function getInstruments(): Promise<BlofinInstrument[]> {
 }
 
 /**
+ * Optional pagination cursor for `getNativeCandles`. Per Blofin's
+ * `/api/v1/market/candles` docs:
+ *   - `before` (unix ms): return bars with timestamp **newer** than this value
+ *     (i.e. forward-pagination — extending the cache toward the present).
+ *   - `after`  (unix ms): return bars with timestamp **older** than this value
+ *     (i.e. backward-pagination — backfilling history). This is the standard
+ *     OKX-derived semantics that Blofin inherits.
+ *   - `limit`: max bars per response. Hard-cap is 1440 (Blofin docs).
+ *
+ * Both cursors are EXCLUSIVE on the Blofin side; callers passing `last.t*1000`
+ * as `before` will get bars strictly newer than `last`, no duplicate.
+ */
+export interface BlofinCandleOpts {
+  before?: number;
+  after?: number;
+  limit?: number;
+}
+
+/**
  * Pull candles for one instrument. Blofin returns newest-first; we reverse to
  * oldest-first to match the repo-wide convention. We take quote volume (index 7,
  * USDT-denominated) so volumes are apples-to-apples with MEXC's amount24.
  *
- * Note: limit max is 1440 per request per Blofin docs. We don't paginate here —
- * for backtests > 1440 bars, call repeatedly with `before`/`after` (TODO).
+ * Two call styles, both supported (backward-compatible):
+ *   - Legacy: `getNativeCandles(instId, bar, limit?)` — old call sites continue
+ *     to work; `limit` defaults to 500.
+ *   - Paginated: `getNativeCandles(instId, bar, { before?, after?, limit? })`
+ *     — used by the backtest data-fetcher to walk windows > 1440 bars.
+ *
+ * Limit is always clamped to [1, 1440].
  */
-export async function getNativeCandles(instId: string, bar: BlofinBar, limit = 500): Promise<Candle[]> {
-  const capped = Math.min(Math.max(1, limit), 1440);
-  const url = `${BASE}/api/v1/market/candles?instId=${encodeURIComponent(instId)}&bar=${bar}&limit=${capped}`;
+export async function getNativeCandles(
+  instId: string,
+  bar: BlofinBar,
+  limitOrOpts: number | BlofinCandleOpts = 500,
+): Promise<Candle[]> {
+  const opts: BlofinCandleOpts =
+    typeof limitOrOpts === "number" ? { limit: limitOrOpts } : limitOrOpts;
+  const capped = Math.min(Math.max(1, opts.limit ?? 500), 1440);
+
+  const params = new URLSearchParams();
+  params.set("instId", instId);
+  params.set("bar", bar);
+  params.set("limit", String(capped));
+  if (opts.before !== undefined && Number.isFinite(opts.before)) {
+    params.set("before", String(Math.floor(opts.before)));
+  }
+  if (opts.after !== undefined && Number.isFinite(opts.after)) {
+    params.set("after", String(Math.floor(opts.after)));
+  }
+
+  const url = `${BASE}/api/v1/market/candles?${params.toString()}`;
   const rows = await getEnvelope<CandleRow[]>(url);
   if (!rows) return [];
   // Newest-first → reverse to oldest-first.
