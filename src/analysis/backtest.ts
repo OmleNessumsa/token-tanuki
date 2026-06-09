@@ -28,6 +28,33 @@ export interface BacktestTrade {
   side: "LONG" | "SHORT";
 }
 
+/**
+ * Structural type for an externally supplied per-bar score lookup.
+ *
+ * The shape is intentionally identical to `src/backtest/score-cache.ts:ScoreSnapshot`
+ * — but this file does NOT import from `src/backtest/` (one-way dependency rule
+ * per INTEGRATION_CONTRACT.md). Callers that want the ~96× score-cache speedup
+ * pass a closure that wraps a precomputed `ScoreSeries`.
+ *
+ * When `scoreLookup` is provided to `runStrategyOnSeries`:
+ *   - The engine calls `scoreLookup(i)` instead of `scoreAtBar(candles, i)`.
+ *   - If the lookup returns `null`, the bar is treated as INELIGIBLE for entry
+ *     (same as a sub-warmup bar).
+ *   - If the lookup returns a `BarScore` whose `closeAboveStage2Sma` is set,
+ *     the engine USES that value for stage-2 gating instead of recomputing
+ *     the SMA inline.
+ *
+ * If `scoreLookup` is NOT provided, behavior is identical to the legacy path:
+ * the engine calls `scoreAtBar` lazily and computes the stage-2 SMA inline.
+ */
+export interface BarScore {
+  score: number;
+  trend: "up" | "down" | "flat";
+  hasBreakout: boolean;
+  closeAboveStage2Sma: boolean;
+}
+export type BarScoreLookup = (barIndex: number) => BarScore | null;
+
 export interface BacktestStats {
   trades: number;
   wins: number;
@@ -76,8 +103,13 @@ const DEFAULT_CONFIG: BacktestConfig = {
 /**
  * Simulate the daily-chart-score at a specific bar index using only candles[0..i].
  * Returns the same shape scoreChart returns for the slice.
+ *
+ * Exported so existing callers (`scripts/backtest.ts`) keep working AND so
+ * `src/backtest/score-cache.ts` could in principle reuse the same primitive.
+ * Note: `closeAboveStage2Sma` is NOT computed here — it's the inline-SMA path's
+ * concern; `BarScore`-providers compute it themselves.
  */
-function scoreAtBar(candles: readonly Candle[], i: number): { score: number; trend: "up" | "down" | "flat"; hasBreakout: boolean } {
+export function scoreAtBar(candles: readonly Candle[], i: number): { score: number; trend: "up" | "down" | "flat"; hasBreakout: boolean } {
   const slice = candles.slice(0, i + 1);
   const result = scoreChart(slice, slice);
   return { score: result.score, trend: result.trend, hasBreakout: result.breakout !== null };
@@ -86,10 +118,22 @@ function scoreAtBar(candles: readonly Candle[], i: number): { score: number; tre
 /**
  * Run the strategy on a single perp's candle series.
  * Returns trades that fired + their realized R.
+ *
+ * Optional 3rd parameter `scoreLookup`: an external callback that returns a
+ * pre-computed `BarScore` for the given bar index. When supplied:
+ *   - Replaces the inline `scoreAtBar(candles, i)` call (the ~96× speedup).
+ *   - Returning `null` marks the bar INELIGIBLE for entry (same effect as a
+ *     sub-warmup bar).
+ *   - The supplied `closeAboveStage2Sma` field replaces the inline SMA
+ *     computation for stage-2 gating, so the engine does no SMA work when a
+ *     lookup is given.
+ *
+ * Existing callers pass nothing → existing behavior unchanged.
  */
 export function runStrategyOnSeries(
   candles: readonly Candle[],
   config: BacktestConfig = DEFAULT_CONFIG,
+  scoreLookup?: BarScoreLookup,
 ): BacktestTrade[] {
   const trades: BacktestTrade[] = [];
   if (candles.length <= config.warmupBars + config.horizonBars) return trades;
@@ -97,7 +141,10 @@ export function runStrategyOnSeries(
   const atrSeries = atr(candles, 14);
   const stage2Period = config.stage2SmaPeriod ?? 150;
   const closes = candles.map((c) => c.c);
-  const smaSeries = config.requireStage2 ? sma(closes, stage2Period) : null;
+  // Only compute the inline SMA when no external lookup is provided.
+  // When `scoreLookup` is given, callers supply `closeAboveStage2Sma` on the
+  // returned BarScore — no need to recompute the SMA here.
+  const smaSeries = config.requireStage2 && !scoreLookup ? sma(closes, stage2Period) : null;
   const side: "LONG" | "SHORT" = config.side ?? "LONG";
   const isShort = side === "SHORT";
   let lastEntryIdx = -Infinity;
@@ -105,7 +152,8 @@ export function runStrategyOnSeries(
   for (let i = config.warmupBars; i < candles.length - config.horizonBars; i++) {
     if (i - lastEntryIdx < config.cooldownBars) continue;
 
-    const score = scoreAtBar(candles, i);
+    const score = scoreLookup ? scoreLookup(i) : scoreAtBar(candles, i);
+    if (score === null) continue; // ineligible bar (warmup or out-of-cache)
     if (score.score < config.thresholdComposite) continue;
     if (isShort) {
       // SHORT: directional gate inverted — require down trend.
@@ -115,15 +163,26 @@ export function runStrategyOnSeries(
       if (score.trend === "down") continue;
     }
     if (config.requireBreakout && !score.hasBreakout) continue;
-    if (smaSeries) {
-      const smaIdx = i - (stage2Period - 1);
-      const smaValue = smaIdx >= 0 ? smaSeries[smaIdx] : undefined;
-      if (smaValue === undefined) continue;
-      if (isShort) {
-        // SHORT stage-2 = close BELOW SMA (downtrend regime, Stage 4 in Weinstein terms).
-        if (candles[i]!.c >= smaValue) continue;
-      } else {
-        if (candles[i]!.c <= smaValue) continue;
+    if (config.requireStage2) {
+      if (scoreLookup) {
+        // Use the precomputed value from the lookup. BarScore returned by a
+        // ScoreSeries cache always includes this field.
+        const aboveSma = (score as BarScore).closeAboveStage2Sma;
+        if (isShort) {
+          if (aboveSma) continue;        // SHORT requires close <= SMA(150)
+        } else {
+          if (!aboveSma) continue;       // LONG  requires close >  SMA(150)
+        }
+      } else if (smaSeries) {
+        const smaIdx = i - (stage2Period - 1);
+        const smaValue = smaIdx >= 0 ? smaSeries[smaIdx] : undefined;
+        if (smaValue === undefined) continue;
+        if (isShort) {
+          // SHORT stage-2 = close BELOW SMA (downtrend regime, Stage 4 in Weinstein terms).
+          if (candles[i]!.c >= smaValue) continue;
+        } else {
+          if (candles[i]!.c <= smaValue) continue;
+        }
       }
     }
 
