@@ -11,11 +11,8 @@
 
 import type { BacktestStats, BacktestTrade } from "../analysis/backtest.js";
 
-/** 5-minute bars: 288/day × 365 = 105,120 bars/year. */
-const DEFAULT_BARS_PER_YEAR = 105_120;
-
 export interface ExtendedStats extends BacktestStats {
-  /** Annualized Sharpe of the per-trade R distribution. */
+  /** Per-trade Sharpe of the R distribution (mean / stdev, un-annualized). */
   sharpe: number;
   /** sum(wins) / |sum(losses)|; Infinity when no losses. */
   profitFactor: number;
@@ -51,17 +48,24 @@ export const DEFAULT_COST_MODEL: CostModel = {
 };
 
 /**
- * Annualized Sharpe ratio of an R-multiple distribution.
+ * Per-trade Sharpe ratio of an R-multiple distribution: mean(R) / stdev(R).
  *
- * Treats each R observation as one "bar" of return (per-trade Sharpe is what
- * the reporter actually wants — we annualize using bars-per-year so the
- * number is directly comparable to a buy-and-hold Sharpe).
+ * Un-annualized by default. Each entry in `rDistribution` is one trade's
+ * R-multiple, NOT a per-bar return — annualizing with `sqrt(bars/year)`
+ * (the v1 behavior) would over-state the metric by orders of magnitude for
+ * any sparse-trade strategy. If you genuinely have time-aligned returns
+ * (one per bar), pass `annualizationFactor = sqrt(periodsPerYear)`.
+ *
+ * Reading the result:
+ *   - Per-trade Sharpe > 1.0  → consistent winners relative to noise
+ *   - 0.5 .. 1.0              → decent edge
+ *   - < 0                     → losing system
  *
  * Edge cases:
- *   - Empty input → 0 (not NaN).
- *   - All-zero or zero-variance input → 0 (not NaN, not Infinity).
+ *   - Empty / single-element input → 0 (not NaN).
+ *   - Zero variance → 0 (not NaN, not Infinity).
  */
-export function sharpe(rDistribution: readonly number[], barsPerYear: number = DEFAULT_BARS_PER_YEAR): number {
+export function sharpe(rDistribution: readonly number[], annualizationFactor: number = 1): number {
   if (rDistribution.length === 0) return 0;
   let sum = 0;
   for (const r of rDistribution) sum += r;
@@ -76,7 +80,7 @@ export function sharpe(rDistribution: readonly number[], barsPerYear: number = D
   variance /= rDistribution.length - 1;
   const stdev = Math.sqrt(variance);
   if (stdev === 0 || !Number.isFinite(stdev)) return 0;
-  return (mean / stdev) * Math.sqrt(barsPerYear);
+  return (mean / stdev) * annualizationFactor;
 }
 
 /**
@@ -107,14 +111,18 @@ export function profitFactor(trades: readonly BacktestTrade[]): number {
 /**
  * Per-symbol concentration breakdown.
  *
- * `share` is signed R / totalR — a symbol can have negative R and negative
- * share. The kill-switch trips on the absolute value: any single symbol
- * STRICTLY greater than 0.50 absolute share fails the gate.
+ * `share` is symR / sum(|symR_i|) — denominator is the sum of ABSOLUTE
+ * per-symbol R, NOT the signed total. This keeps shares bounded in [-1, +1]
+ * even when wins offset losses; the v1 signed-totalR denominator could make
+ * shares balloon to 300%+ when totalR was near zero (a real bug surfaced on
+ * the first smoke run).
+ *
+ * The kill-switch still trips on `|share| > 0.50` — semantics unchanged,
+ * but the number is now physically readable.
  *
  * Edge cases:
  *   - Empty trades → totalR=0, bySymbol=[], killSwitchTripped=false.
- *   - Zero totalR with non-zero per-symbol R (wins offset losses) → share=0
- *     for every symbol; killSwitch stays false.
+ *   - All-zero R → share=0 for every symbol; killSwitch stays false.
  */
 export function symbolConcentration(
   trades: readonly (BacktestTrade & { symbol: string })[],
@@ -124,15 +132,17 @@ export function symbolConcentration(
   }
   const sumBySymbol = new Map<string, number>();
   let totalR = 0;
+  let absTotalR = 0;
   for (const t of trades) {
     sumBySymbol.set(t.symbol, (sumBySymbol.get(t.symbol) ?? 0) + t.rMultiple);
     totalR += t.rMultiple;
   }
+  for (const symR of sumBySymbol.values()) absTotalR += Math.abs(symR);
   // Deterministic order — by symbol ascending — matches universe.ts tie-break convention.
   const sortedSymbols = Array.from(sumBySymbol.keys()).sort();
   const bySymbol = sortedSymbols.map((symbol) => {
     const symR = sumBySymbol.get(symbol)!;
-    const share = totalR === 0 ? 0 : symR / totalR;
+    const share = absTotalR === 0 ? 0 : symR / absTotalR;
     return { symbol, totalR: symR, share };
   });
   // Kill-switch strictly > 0.50, NOT >= 0.50.

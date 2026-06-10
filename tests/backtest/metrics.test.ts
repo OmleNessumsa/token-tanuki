@@ -153,6 +153,66 @@ describe("symbolConcentration — kill-switch boundary", () => {
     expect(report.bySymbol).toEqual([]);
     expect(report.totalR).toBe(0);
   });
+
+  // Regression: smoke run #1 showed shares like 152.8% and 381.4% because the
+  // v1 denominator was signed totalR — when wins offset losses, totalR shrinks
+  // toward 0 and the ratio explodes. Denominator is now sum(|symR|), bounding
+  // share in [-1, +1].
+  it("share stays bounded in [-1, +1] even with wins offsetting losses", () => {
+    const trades = [
+      trade({ symbol: "ETH", rMultiple: 7.40 }),
+      trade({ symbol: "BTC", rMultiple: -2.56 }),
+    ];
+    const report = symbolConcentration(trades);
+    for (const b of report.bySymbol) {
+      expect(Math.abs(b.share)).toBeLessThanOrEqual(1);
+    }
+    // ETH dominates: 7.40 / (7.40 + 2.56) = 0.7430...
+    const eth = report.bySymbol.find((b) => b.symbol === "ETH");
+    expect(eth?.share).toBeCloseTo(0.7430, 3);
+    expect(report.killSwitchTripped).toBe(true);
+  });
+
+  it("near-zero totalR (wins ≈ -losses) does NOT explode shares", () => {
+    const trades = [
+      trade({ symbol: "AAA", rMultiple: 10 }),
+      trade({ symbol: "BBB", rMultiple: -10 }),
+    ];
+    const report = symbolConcentration(trades);
+    // totalR == 0 but absTotalR == 20.
+    expect(report.totalR).toBe(0);
+    expect(report.bySymbol.find((b) => b.symbol === "AAA")?.share).toBeCloseTo(0.5, 9);
+    expect(report.bySymbol.find((b) => b.symbol === "BBB")?.share).toBeCloseTo(-0.5, 9);
+    expect(report.killSwitchTripped).toBe(false); // exactly 0.5, not strictly greater
+  });
+});
+
+// ---------------------------------------------------------------------------
+// sharpe — annualization regression
+// ---------------------------------------------------------------------------
+
+// Regression: smoke run #1 reported Sharpe values of ±97 because the v1
+// default annualized with sqrt(105_120) (bars-per-year) on a per-trade
+// R distribution. Per-trade Sharpe should be O(1), not O(100).
+describe("sharpe — per-trade magnitude is O(1), not bar-annualized", () => {
+  it("a small all-positive R distribution returns single-digit Sharpe", () => {
+    // 4 modestly positive trades. Per-trade Sharpe should be a couple,
+    // never approaching the v1 ~97 number.
+    const r = [2, 1.5, 1.8, 2.2];
+    const s = sharpe(r);
+    expect(s).toBeGreaterThan(0);
+    expect(s).toBeLessThan(20);
+  });
+
+  it("explicit annualizationFactor = 1 matches default behavior", () => {
+    const r = [0.5, 1.0, 0.3, 0.8, 1.2, 0.4];
+    expect(sharpe(r)).toBeCloseTo(sharpe(r, 1), 9);
+  });
+
+  it("annualizationFactor scales the result linearly", () => {
+    const r = [0.5, 1.0, 0.3, 0.8, 1.2, 0.4];
+    expect(sharpe(r, 2)).toBeCloseTo(sharpe(r, 1) * 2, 9);
+  });
 });
 
 // ---------------------------------------------------------------------------
