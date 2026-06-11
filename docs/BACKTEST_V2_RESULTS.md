@@ -1,16 +1,16 @@
 # Backtest v2 — Results
 
-**Generated:** 2026-06-10T04:51:11.599Z
+**Generated:** 2026-06-11T12:26:05.404Z
 
 ## Run metadata
 
 | Field | Value |
 |---|---|
-| Window | 2026-05-11 → 2026-06-10 |
-| Window length | 30.0 days |
+| Window | 2026-03-13 → 2026-06-11 |
+| Window length | 90.0 days |
 | Grid size | 32 configs |
-| Universe size | top-5 |
-| Wall-clock | 309.6s |
+| Universe size | top-15 |
+| Wall-clock | 16894.8s |
 
 ## Certification gates
 
@@ -32,92 +32,101 @@ Sorted by out-of-sample mean expectancy descending. IS-OOS delta > 50% is the ar
 
 | Rank | Config ID | Side | Summary | IS exp | OOS exp | IS-OOS delta | OOS Sharpe | OOS max DD | Top sym share | Certified |
 |---:|---|---|---|---:|---:|---:|---:|---:|---:|:---:|
-| 1 | `SHORT-c60-s2T-atr1.5-h36-cd12` | SHORT | c60 stage2 atr1.5 h36 cd12 | -0.079 | +0.191 | 141% (RED) | +0.09 | 6.78 | 55.9% | no |
-| 2 | `SHORT-c60-s2F-atr1.5-h36-cd12` | SHORT | c60 no-s2 atr1.5 h36 cd12 | -0.110 | +0.191 | 157% (RED) | +0.09 | 6.78 | 55.9% | no |
-| 3 | `SHORT-c70-s2T-atr1.5-h36-cd12` | SHORT | c70 stage2 atr1.5 h36 cd12 | -1.560 | 0.000 | 100% (RED) | 0.00 | 0.00 | 0.0% | no |
-| 4 | `SHORT-c70-s2T-atr2.5-h36-cd12` | SHORT | c70 stage2 atr2.5 h36 cd12 | -1.255 | 0.000 | 100% (RED) | 0.00 | 0.00 | 0.0% | no |
-| 5 | `SHORT-c70-s2F-atr1.5-h36-cd12` | SHORT | c70 no-s2 atr1.5 h36 cd12 | -1.560 | 0.000 | 100% (RED) | 0.00 | 0.00 | 0.0% | no |
-| 6 | `SHORT-c70-s2F-atr2.5-h36-cd12` | SHORT | c70 no-s2 atr2.5 h36 cd12 | -1.255 | 0.000 | 100% (RED) | 0.00 | 0.00 | 0.0% | no |
-| 7 | `SHORT-c55-s2T-atr2.5-h36-cd12` | SHORT | c55 stage2 atr2.5 h36 cd12 | -0.139 | -0.037 | 74% (RED) | -0.03 | 10.68 | 41.6% | no |
-| 8 | `SHORT-c55-s2T-atr1.5-h36-cd12` | SHORT | c55 stage2 atr1.5 h36 cd12 | -0.105 | -0.042 | 60% (RED) | -0.02 | 13.78 | 46.7% | no |
-| 9 | `SHORT-c60-s2T-atr2.5-h36-cd12` | SHORT | c60 stage2 atr2.5 h36 cd12 | -0.003 | -0.047 | 94% (RED) | -0.03 | 5.21 | 47.3% | no |
-| 10 | `SHORT-c60-s2F-atr2.5-h36-cd12` | SHORT | c60 no-s2 atr2.5 h36 cd12 | -0.010 | -0.047 | 80% (RED) | -0.03 | 5.21 | 47.3% | no |
-| 11 | `SHORT-c55-s2F-atr2.5-h36-cd12` | SHORT | c55 no-s2 atr2.5 h36 cd12 | -0.132 | -0.089 | 33% | -0.07 | 11.77 | 38.5% | no |
-| 12 | `SHORT-c55-s2F-atr1.5-h36-cd12` | SHORT | c55 no-s2 atr1.5 h36 cd12 | -0.095 | -0.098 | 3% | -0.05 | 14.93 | 41.6% | no |
-| 13 | `LONG-c70-s2T-atr2.5-h36-cd12` | LONG | c70 stage2 atr2.5 h36 cd12 | -0.646 | -0.390 | 40% | -0.33 | 120.05 | 33.0% | no |
-| 14 | `LONG-c70-s2F-atr2.5-h36-cd12` | LONG | c70 no-s2 atr2.5 h36 cd12 | -0.624 | -0.400 | 36% | -0.35 | 149.84 | 32.2% | no |
-| 15 | `LONG-c55-s2F-atr2.5-h36-cd12` | LONG | c55 no-s2 atr2.5 h36 cd12 | -0.614 | -0.405 | 34% | -0.34 | 215.68 | 26.0% | no |
-| 16 | `LONG-c60-s2F-atr2.5-h36-cd12` | LONG | c60 no-s2 atr2.5 h36 cd12 | -0.621 | -0.415 | 33% | -0.35 | 202.85 | 27.1% | no |
-| 17 | `LONG-c55-s2T-atr2.5-h36-cd12` | LONG | c55 stage2 atr2.5 h36 cd12 | -0.676 | -0.416 | 39% | -0.35 | 167.29 | 30.9% | no |
-| 18 | `LONG-c65-s2F-atr2.5-h36-cd12` | LONG | c65 no-s2 atr2.5 h36 cd12 | -0.613 | -0.426 | 31% | -0.36 | 188.53 | 26.0% | no |
-| 19 | `LONG-c60-s2T-atr2.5-h36-cd12` | LONG | c60 stage2 atr2.5 h36 cd12 | -0.671 | -0.431 | 36% | -0.36 | 164.92 | 30.4% | no |
-| 20 | `LONG-c65-s2T-atr2.5-h36-cd12` | LONG | c65 stage2 atr2.5 h36 cd12 | -0.667 | -0.454 | 32% | -0.39 | 155.97 | 29.6% | no |
-| 21 | `LONG-c55-s2F-atr1.5-h36-cd12` | LONG | c55 no-s2 atr1.5 h36 cd12 | -0.874 | -0.588 | 33% | -0.37 | 312.98 | 26.3% | no |
-| 22 | `LONG-c65-s2F-atr1.5-h36-cd12` | LONG | c65 no-s2 atr1.5 h36 cd12 | -0.877 | -0.615 | 30% | -0.38 | 272.56 | 23.2% | no |
-| 23 | `LONG-c60-s2F-atr1.5-h36-cd12` | LONG | c60 no-s2 atr1.5 h36 cd12 | -0.896 | -0.620 | 31% | -0.40 | 303.05 | 27.2% | no |
-| 24 | `LONG-c70-s2F-atr1.5-h36-cd12` | LONG | c70 no-s2 atr1.5 h36 cd12 | -0.907 | -0.630 | 31% | -0.42 | 236.17 | 25.8% | no |
-| 25 | `LONG-c70-s2T-atr1.5-h36-cd12` | LONG | c70 stage2 atr1.5 h36 cd12 | -0.878 | -0.664 | 24% | -0.44 | 199.23 | 26.7% | no |
-| 26 | `LONG-c65-s2T-atr1.5-h36-cd12` | LONG | c65 stage2 atr1.5 h36 cd12 | -0.898 | -0.664 | 26% | -0.43 | 225.88 | 28.9% | no |
-| 27 | `LONG-c60-s2T-atr1.5-h36-cd12` | LONG | c60 stage2 atr1.5 h36 cd12 | -0.934 | -0.664 | 29% | -0.42 | 243.83 | 30.2% | no |
-| 28 | `LONG-c55-s2T-atr1.5-h36-cd12` | LONG | c55 stage2 atr1.5 h36 cd12 | -0.939 | -0.671 | 29% | -0.42 | 259.01 | 29.4% | no |
-| 29 | `SHORT-c65-s2T-atr2.5-h36-cd12` | SHORT | c65 stage2 atr2.5 h36 cd12 | +0.547 | -0.731 | 175% (RED) | -0.97 | 2.34 | 94.3% | no |
-| 30 | `SHORT-c65-s2F-atr2.5-h36-cd12` | SHORT | c65 no-s2 atr2.5 h36 cd12 | +0.550 | -0.731 | 175% (RED) | -0.97 | 2.34 | 94.3% | no |
-| 31 | `SHORT-c65-s2T-atr1.5-h36-cd12` | SHORT | c65 stage2 atr1.5 h36 cd12 | +0.229 | -0.774 | 130% (RED) | -0.88 | 2.56 | 91.6% | no |
-| 32 | `SHORT-c65-s2F-atr1.5-h36-cd12` | SHORT | c65 no-s2 atr1.5 h36 cd12 | +0.176 | -0.774 | 123% (RED) | -0.88 | 2.56 | 91.6% | no |
+| 1 | `SHORT-c70-s2T-atr2.5-h36-cd12` | SHORT | c70 stage2 atr2.5 h36 cd12 | -0.178 | +0.704 | 125% (RED) | +0.27 | 2.64 | 43.2% | no |
+| 2 | `SHORT-c70-s2F-atr2.5-h36-cd12` | SHORT | c70 no-s2 atr2.5 h36 cd12 | -0.013 | +0.490 | 103% (RED) | +0.20 | 2.64 | 39.2% | no |
+| 3 | `SHORT-c65-s2T-atr2.5-h36-cd12` | SHORT | c65 stage2 atr2.5 h36 cd12 | +0.028 | +0.227 | 88% (RED) | +0.11 | 11.04 | 15.1% | no |
+| 4 | `SHORT-c65-s2F-atr2.5-h36-cd12` | SHORT | c65 no-s2 atr2.5 h36 cd12 | +0.036 | +0.160 | 78% (RED) | +0.08 | 12.63 | 13.8% | no |
+| 5 | `SHORT-c55-s2T-atr2.5-h36-cd12` | SHORT | c55 stage2 atr2.5 h36 cd12 | -0.178 | -0.095 | 46% | -0.06 | 68.81 | 12.8% | no |
+| 6 | `SHORT-c60-s2T-atr2.5-h36-cd12` | SHORT | c60 stage2 atr2.5 h36 cd12 | -0.217 | -0.106 | 51% (RED) | -0.06 | 47.47 | 17.6% | no |
+| 7 | `SHORT-c55-s2T-atr1.5-h36-cd12` | SHORT | c55 stage2 atr1.5 h36 cd12 | -0.346 | -0.120 | 65% (RED) | -0.05 | 71.82 | 19.6% | no |
+| 8 | `SHORT-c55-s2F-atr2.5-h36-cd12` | SHORT | c55 no-s2 atr2.5 h36 cd12 | -0.180 | -0.140 | 22% | -0.08 | 84.49 | 13.1% | no |
+| 9 | `SHORT-c60-s2F-atr2.5-h36-cd12` | SHORT | c60 no-s2 atr2.5 h36 cd12 | -0.212 | -0.142 | 33% | -0.07 | 49.42 | 17.4% | no |
+| 10 | `SHORT-c60-s2T-atr1.5-h36-cd12` | SHORT | c60 stage2 atr1.5 h36 cd12 | -0.448 | -0.163 | 64% (RED) | -0.06 | 75.43 | 14.8% | no |
+| 11 | `SHORT-c55-s2F-atr1.5-h36-cd12` | SHORT | c55 no-s2 atr1.5 h36 cd12 | -0.336 | -0.177 | 47% | -0.07 | 97.59 | 18.3% | no |
+| 12 | `SHORT-c60-s2F-atr1.5-h36-cd12` | SHORT | c60 no-s2 atr1.5 h36 cd12 | -0.414 | -0.216 | 48% | -0.08 | 79.78 | 14.4% | no |
+| 13 | `LONG-c60-s2F-atr2.5-h36-cd12` | LONG | c60 no-s2 atr2.5 h36 cd12 | -0.298 | -0.311 | 4% | -0.21 | 1434.73 | 13.7% | no |
+| 14 | `LONG-c55-s2F-atr2.5-h36-cd12` | LONG | c55 no-s2 atr2.5 h36 cd12 | -0.294 | -0.316 | 7% | -0.22 | 1558.30 | 13.3% | no |
+| 15 | `LONG-c65-s2F-atr2.5-h36-cd12` | LONG | c65 no-s2 atr2.5 h36 cd12 | -0.289 | -0.318 | 9% | -0.21 | 1302.72 | 12.7% | no |
+| 16 | `LONG-c70-s2F-atr2.5-h36-cd12` | LONG | c70 no-s2 atr2.5 h36 cd12 | -0.277 | -0.329 | 16% | -0.23 | 1152.92 | 12.5% | no |
+| 17 | `LONG-c65-s2T-atr2.5-h36-cd12` | LONG | c65 stage2 atr2.5 h36 cd12 | -0.269 | -0.348 | 23% | -0.24 | 1145.91 | 12.3% | no |
+| 18 | `LONG-c70-s2T-atr2.5-h36-cd12` | LONG | c70 stage2 atr2.5 h36 cd12 | -0.263 | -0.349 | 25% | -0.24 | 1042.28 | 12.0% | no |
+| 19 | `LONG-c60-s2T-atr2.5-h36-cd12` | LONG | c60 stage2 atr2.5 h36 cd12 | -0.274 | -0.354 | 23% | -0.24 | 1271.71 | 11.6% | no |
+| 20 | `LONG-c55-s2T-atr2.5-h36-cd12` | LONG | c55 stage2 atr2.5 h36 cd12 | -0.268 | -0.363 | 26% | -0.26 | 1370.48 | 11.3% | no |
+| 21 | `SHORT-c65-s2T-atr1.5-h36-cd12` | SHORT | c65 stage2 atr1.5 h36 cd12 | -0.178 | -0.414 | 57% (RED) | -0.17 | 31.90 | 17.8% | no |
+| 22 | `LONG-c55-s2F-atr1.5-h36-cd12` | LONG | c55 no-s2 atr1.5 h36 cd12 | -0.477 | -0.431 | 10% | -0.20 | 2118.05 | 14.5% | no |
+| 23 | `LONG-c60-s2F-atr1.5-h36-cd12` | LONG | c60 no-s2 atr1.5 h36 cd12 | -0.469 | -0.438 | 7% | -0.21 | 2023.51 | 15.2% | no |
+| 24 | `LONG-c65-s2F-atr1.5-h36-cd12` | LONG | c65 no-s2 atr1.5 h36 cd12 | -0.468 | -0.444 | 5% | -0.21 | 1815.85 | 14.6% | no |
+| 25 | `LONG-c70-s2F-atr1.5-h36-cd12` | LONG | c70 no-s2 atr1.5 h36 cd12 | -0.452 | -0.468 | 3% | -0.22 | 1639.92 | 14.1% | no |
+| 26 | `LONG-c65-s2T-atr1.5-h36-cd12` | LONG | c65 stage2 atr1.5 h36 cd12 | -0.452 | -0.494 | 8% | -0.24 | 1628.67 | 12.4% | no |
+| 27 | `SHORT-c65-s2F-atr1.5-h36-cd12` | SHORT | c65 no-s2 atr1.5 h36 cd12 | -0.137 | -0.494 | 72% (RED) | -0.21 | 36.28 | 16.3% | no |
+| 28 | `LONG-c70-s2T-atr1.5-h36-cd12` | LONG | c70 stage2 atr1.5 h36 cd12 | -0.444 | -0.497 | 11% | -0.24 | 1485.54 | 11.0% | no |
+| 29 | `LONG-c60-s2T-atr1.5-h36-cd12` | LONG | c60 stage2 atr1.5 h36 cd12 | -0.448 | -0.512 | 13% | -0.25 | 1839.99 | 13.2% | no |
+| 30 | `LONG-c55-s2T-atr1.5-h36-cd12` | LONG | c55 stage2 atr1.5 h36 cd12 | -0.448 | -0.528 | 15% | -0.26 | 1990.25 | 12.2% | no |
+| 31 | `SHORT-c70-s2T-atr1.5-h36-cd12` | SHORT | c70 stage2 atr1.5 h36 cd12 | -0.739 | -1.188 | 38% | -1.01 | 9.51 | 29.8% | no |
+| 32 | `SHORT-c70-s2F-atr1.5-h36-cd12` | SHORT | c70 no-s2 atr1.5 h36 cd12 | -0.449 | -1.209 | 63% (RED) | -1.10 | 10.88 | 26.0% | no |
 
 ## Per-gate breakdown (top-10 by OOS expectancy)
 
 | Config ID | OOS exp gate | OOS Sharpe gate | OOS DD gate | Concentration gate | Overfitting gate |
 |---|:---:|:---:|:---:|:---:|:---:|
-| `SHORT-c60-s2T-atr1.5-h36-cd12` | pass | FAIL | pass | FAIL | FAIL |
-| `SHORT-c60-s2F-atr1.5-h36-cd12` | pass | FAIL | pass | FAIL | FAIL |
-| `SHORT-c70-s2T-atr1.5-h36-cd12` | FAIL | FAIL | pass | pass | FAIL |
-| `SHORT-c70-s2T-atr2.5-h36-cd12` | FAIL | FAIL | pass | pass | FAIL |
-| `SHORT-c70-s2F-atr1.5-h36-cd12` | FAIL | FAIL | pass | pass | FAIL |
-| `SHORT-c70-s2F-atr2.5-h36-cd12` | FAIL | FAIL | pass | pass | FAIL |
-| `SHORT-c55-s2T-atr2.5-h36-cd12` | FAIL | FAIL | pass | pass | FAIL |
-| `SHORT-c55-s2T-atr1.5-h36-cd12` | FAIL | FAIL | pass | pass | FAIL |
-| `SHORT-c60-s2T-atr2.5-h36-cd12` | FAIL | FAIL | pass | pass | FAIL |
-| `SHORT-c60-s2F-atr2.5-h36-cd12` | FAIL | FAIL | pass | pass | FAIL |
+| `SHORT-c70-s2T-atr2.5-h36-cd12` | pass | FAIL | pass | pass | FAIL |
+| `SHORT-c70-s2F-atr2.5-h36-cd12` | pass | FAIL | pass | pass | FAIL |
+| `SHORT-c65-s2T-atr2.5-h36-cd12` | pass | FAIL | pass | pass | FAIL |
+| `SHORT-c65-s2F-atr2.5-h36-cd12` | pass | FAIL | pass | pass | FAIL |
+| `SHORT-c55-s2T-atr2.5-h36-cd12` | FAIL | FAIL | FAIL | pass | pass |
+| `SHORT-c60-s2T-atr2.5-h36-cd12` | FAIL | FAIL | FAIL | pass | FAIL |
+| `SHORT-c55-s2T-atr1.5-h36-cd12` | FAIL | FAIL | FAIL | pass | FAIL |
+| `SHORT-c55-s2F-atr2.5-h36-cd12` | FAIL | FAIL | FAIL | pass | pass |
+| `SHORT-c60-s2F-atr2.5-h36-cd12` | FAIL | FAIL | FAIL | pass | pass |
+| `SHORT-c60-s2T-atr1.5-h36-cd12` | FAIL | FAIL | FAIL | pass | FAIL |
 
 ## Top-3 configs — per-symbol OOS breakdown
 
 Aggregated across folds 1-3 (test windows). Excludes the aggregate sanity fold.
 
-### SHORT-c60-s2T-atr1.5-h36-cd12
+### SHORT-c70-s2T-atr2.5-h36-cd12
 
 | Symbol | Trades | Expectancy | Total R |
 |---|---:|---:|---:|
-| ETH-USDT | 5 | +1.770 | +8.85 |
-| SOL-USDT | 2 | +0.110 | +0.22 |
-| DOGE-USDT | 1 | -1.278 | -1.28 |
-| BTC-USDT | 4 | -1.374 | -5.50 |
+| AVAX-USDT | 1 | +5.229 | +5.23 |
+| BTC-USDT | 3 | +1.212 | +3.64 |
+| HBAR-USDT | 1 | -0.168 | -0.17 |
+| ATOM-USDT | 1 | -0.689 | -0.69 |
+| DOT-USDT | 1 | -1.112 | -1.11 |
+| BCH-USDT | 1 | -1.264 | -1.26 |
 
-### SHORT-c60-s2F-atr1.5-h36-cd12
+### SHORT-c70-s2F-atr2.5-h36-cd12
 
 | Symbol | Trades | Expectancy | Total R |
 |---|---:|---:|---:|
-| ETH-USDT | 5 | +1.770 | +8.85 |
-| SOL-USDT | 2 | +0.110 | +0.22 |
-| DOGE-USDT | 1 | -1.278 | -1.28 |
-| BTC-USDT | 4 | -1.374 | -5.50 |
+| AVAX-USDT | 1 | +5.229 | +5.23 |
+| BTC-USDT | 3 | +1.212 | +3.64 |
+| HBAR-USDT | 1 | -0.168 | -0.17 |
+| ATOM-USDT | 1 | -0.689 | -0.69 |
+| DOT-USDT | 1 | -1.112 | -1.11 |
+| FET-USDT | 1 | -1.226 | -1.23 |
+| BCH-USDT | 1 | -1.264 | -1.26 |
 
-### SHORT-c70-s2T-atr1.5-h36-cd12
+### SHORT-c65-s2T-atr2.5-h36-cd12
 
-_No OOS trades._
+| Symbol | Trades | Expectancy | Total R |
+|---|---:|---:|---:|
+| AAVE-USDT | 1 | +5.237 | +5.24 |
+| ADA-USDT | 3 | +1.578 | +4.73 |
+| APT-USDT | 1 | +3.332 | +3.33 |
+| AVAX-USDT | 3 | +0.914 | +2.74 |
+| BTC-USDT | 7 | +0.320 | +2.24 |
+| DOGE-USDT | 3 | +0.670 | +2.01 |
+| ATOM-USDT | 2 | +0.852 | +1.70 |
+| FIL-USDT | 2 | -0.222 | -0.44 |
+| DOT-USDT | 2 | -0.539 | -1.08 |
+| BCH-USDT | 4 | -0.836 | -3.34 |
+| ETH-USDT | 3 | -1.179 | -3.54 |
+| HBAR-USDT | 5 | -1.081 | -5.41 |
 
 ## Concentration check
 
-The following configs failed the concentration kill-switch (> 50% R from one symbol in at least one OOS fold). Treat their headline numbers as unrepresentative.
-
-| Config ID | Fold | Top symbol share |
-|---|---|---:|
-| `SHORT-c60-s2T-atr1.5-h36-cd12` | fold1 | 55.9% |
-| `SHORT-c60-s2F-atr1.5-h36-cd12` | fold1 | 55.9% |
-| `SHORT-c65-s2T-atr1.5-h36-cd12` | fold1 | 91.6% |
-| `SHORT-c65-s2T-atr2.5-h36-cd12` | fold1 | 94.3% |
-| `SHORT-c65-s2F-atr1.5-h36-cd12` | fold1 | 91.6% |
-| `SHORT-c65-s2F-atr2.5-h36-cd12` | fold1 | 94.3% |
+No config has a single symbol contributing > 50% of OOS R in any fold. Pass.
 
 ## Certified configs
 

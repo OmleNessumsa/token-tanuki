@@ -87,6 +87,23 @@ export interface BacktestConfig {
   stage2SmaPeriod?: number;
   /** Direction filter. Defaults to "LONG" to preserve legacy behavior. */
   side?: "LONG" | "SHORT";
+  /**
+   * Decouple signal-detection from trade-execution. When true, the signal
+   * gates (composite > threshold, trend, stage2, breakout) are evaluated for
+   * `side` exactly as before, but the resulting trade is executed in the
+   * OPPOSITE direction: stop placement and R-math flip.
+   *
+   * Use case (PR diagnosis, 2026-06-11): smoke #2 + invert-probe showed the
+   * bullish-classifier signals are anti-correlated with 3h forward returns.
+   * Shorting on bullish signals returned +0.30R raw across 5/5 symbols
+   * (N=886). This flag is the surgical commit of that finding: keep the
+   * existing signal gates, flip what happens AFTER the signal fires.
+   *
+   * The `trade.side` field on emitted trades reflects the EXECUTED direction
+   * (after inversion), not the signal direction, so downstream metrics see
+   * trades labeled by what was actually opened.
+   */
+  invertExecution?: boolean;
 }
 
 const DEFAULT_CONFIG: BacktestConfig = {
@@ -147,6 +164,12 @@ export function runStrategyOnSeries(
   const smaSeries = config.requireStage2 && !scoreLookup ? sma(closes, stage2Period) : null;
   const side: "LONG" | "SHORT" = config.side ?? "LONG";
   const isShort = side === "SHORT";
+  // Signal gates still use `isShort`. Trade execution uses `executedIsShort`,
+  // which inverts when invertExecution is set. The emitted trade.side reflects
+  // the EXECUTED direction so metrics aggregate by what was actually opened.
+  const invertExecution = config.invertExecution === true;
+  const executedIsShort = invertExecution ? !isShort : isShort;
+  const executedSide: "LONG" | "SHORT" = executedIsShort ? "SHORT" : "LONG";
   let lastEntryIdx = -Infinity;
 
   for (let i = config.warmupBars; i < candles.length - config.horizonBars; i++) {
@@ -190,7 +213,8 @@ export function runStrategyOnSeries(
     const atrIdx = i - 1; // ATR series starts at index 14, so atrSeries[i - 14] for bar i
     const atrValue = atrSeries[Math.max(0, atrIdx - 14)] ?? 0;
     if (atrValue <= 0) continue;
-    const stopPrice = isShort
+    // Stop placement uses the EXECUTED direction (post-inversion).
+    const stopPrice = executedIsShort
       ? entryPrice + config.stopAtrMult * atrValue
       : entryPrice - config.stopAtrMult * atrValue;
     if (stopPrice <= 0) continue;
@@ -202,7 +226,7 @@ export function runStrategyOnSeries(
 
     for (let j = i + 1; j <= i + config.horizonBars; j++) {
       const bar = candles[j]!;
-      const stopHit = isShort ? bar.h >= stopPrice : bar.l <= stopPrice;
+      const stopHit = executedIsShort ? bar.h >= stopPrice : bar.l <= stopPrice;
       if (stopHit) {
         exitIdx = j;
         exitPrice = stopPrice;
@@ -211,8 +235,8 @@ export function runStrategyOnSeries(
       }
     }
 
-    const initialRisk = isShort ? stopPrice - entryPrice : entryPrice - stopPrice;
-    const realizedPnl = isShort ? entryPrice - exitPrice : exitPrice - entryPrice;
+    const initialRisk = executedIsShort ? stopPrice - entryPrice : entryPrice - stopPrice;
+    const realizedPnl = executedIsShort ? entryPrice - exitPrice : exitPrice - entryPrice;
     const rMultiple = realizedPnl / initialRisk;
 
     trades.push({
@@ -224,7 +248,7 @@ export function runStrategyOnSeries(
       rMultiple,
       exitReason,
       composite: score.score,
-      side,
+      side: executedSide,
     });
 
     lastEntryIdx = i;

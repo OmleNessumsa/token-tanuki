@@ -465,16 +465,21 @@ function mean(xs: readonly number[]): number {
 /**
  * Resolve the candidate universe instIds.
  *
- * Smoke modus: first 5 from `BLOFIN_TOP30_PERP`.
+ * Smoke modus: candidate pool = `max(args.topN * 2, 5)` from `BLOFIN_TOP30_PERP`.
+ *   The pool must be a strict superset of the per-fold target topN so the
+ *   as-of-volume ranker has real selection room. Doubling gives the universe
+ *   step something to actually rank; if the user asks for top-15 we hand it
+ *   30 candidates, not 5.
  * Full modus: the full `BLOFIN_TOP30_PERP` (30 perps). The architecture's
- * "top-50 superset" decision (PRD §10 Q6) is approximated here using the
- * curated top-30 — we have no published #31-50 list, and the per-fold
- * universe selection still picks top-`topN` dynamically from each fold's
- * as-of volume rank within whatever pool we hand it.
+ *   "top-50 superset" decision (PRD §10 Q6) is approximated here using the
+ *   curated top-30 — we have no published #31-50 list, and the per-fold
+ *   universe selection still picks top-`topN` dynamically from each fold's
+ *   as-of volume rank within whatever pool we hand it.
  */
 function resolveCandidateInstIds(args: CliArgs): string[] {
   if (args.smoke) {
-    return [...BLOFIN_TOP30_PERP].slice(0, 5);
+    const poolSize = Math.min(BLOFIN_TOP30_PERP.length, Math.max(args.topN * 2, 5));
+    return [...BLOFIN_TOP30_PERP].slice(0, poolSize);
   }
   return [...BLOFIN_TOP30_PERP];
 }
