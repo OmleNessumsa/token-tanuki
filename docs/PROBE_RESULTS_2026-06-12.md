@@ -103,6 +103,33 @@ accrual included in PnL. 544 settlement cross-sections.
 - Raw: `logs/probe-funding-xsec-2026-06-12.json` (incl. baskets per
   settlement — turnover/cost analysis reproducible without refetching).
 
+### The 3y re-test (`--window-days 1095`): DEFINITIVE FAIL
+
+Same construction, same pre-registered criteria, 30-symbol universe with
+per-settlement membership (partial-history listings included where they have
+data — less survivorship bias than the 1y run), 1733 cross-sections.
+
+| h | gross total | t | quarters + | NET @ measured turnover | t(net) |
+|---|---|---|---|---|---|
+| 8h | -1.8 bps | -0.38 | 2/4 | **-39.1 bps/day** | -2.69 |
+| 24h | 8.3 bps | 0.57 | 2/4 | -4.5 bps/day | -0.31 |
+| 72h | 46.6 bps | 1.09 | 4/4 | +10.8 bps/day | 0.76 |
+
+- **h=24 now fails ALL THREE criteria** (t=0.57, 2/4 quarters, gross 8.3 < 14).
+- With 3× the sample the effect SHRANK (gross 25.3 → 8.3 bps at h=24; 84 →
+  46.6 at h=72). That is the signature of a regime artifact in the favorable
+  recent year, not of a true effect gaining significance with power.
+- The h=8 variant is significantly NEGATIVE net of costs.
+- Carry remains mechanical (t=18-42) but is too small to clear costs plus
+  the price-leg noise at any rebalance frequency.
+
+Operational lesson encoded in the client (commit-level fix): Blofin's rate
+limiter silently truncates bulk fetches — `getEnvelope` returns null, the
+old pagination treated that as end-of-history. `getFundingRateHistory` now
+distinguishes error (retry w/ backoff) from empty (genuine end), and the
+probe's candle/tickers fetchers retry similarly. First 3y attempt produced
+"0 bars" for 41/45 symbols because of exactly this.
+
 ## Net verdict after today
 
 | Path | Status |
@@ -110,7 +137,7 @@ accrual included in PnL. 544 settlement cross-sections.
 | scoreChart on 5m (all variants) | dead (2026-06-11) |
 | C3: scoreChart on 1h | **dead (today)** |
 | C4a: time-series funding percentile | **no standalone edge (today)** |
-| C4b: cross-sectional funding (26 syms, market-neutral) | **FAIL on pre-registered gate, but borderline** — only construction with no sign-flips; 3y re-test is the single remaining justifiable probe |
+| C4b: cross-sectional funding (26-30 syms, market-neutral) | **dead** — 1y borderline FAIL did not replicate on 3y; effect shrank with 3× sample (regime artifact), h=24 fails all three criteria, net negative at measured turnover |
 | C4c: regime detection as a gate | untested — but there is no positive-expectancy strategy left to gate |
 | C4d: on-chain signals | untested, needs new data source |
 | C5: stop | always available, free |

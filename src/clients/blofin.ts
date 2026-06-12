@@ -211,10 +211,17 @@ export interface BlofinFundingHistoryEntry {
  * newest-first; `after=T` pages to records with `fundingTime < T` (verified
  * 2026-06-12). Returns entries with `fundingTime >= fromMs`, oldest-first.
  * Stops early if the API runs out of history.
+ *
+ * Distinguishes transient failures from end-of-history: `getEnvelope` → null
+ * (HTTP error / non-zero code, typically rate limiting) is retried with
+ * exponential backoff; an empty `data` array means no more records. Without
+ * this, a rate-limit hit mid-pagination silently truncates the series —
+ * which is exactly what happened on the first 3y bulk fetch (2026-06-12).
  */
 export async function getFundingRateHistory(
   instId: string,
   fromMs: number,
+  pageDelayMs = 250,
 ): Promise<BlofinFundingHistoryEntry[]> {
   const out: BlofinFundingHistoryEntry[] = [];
   let cursor: number | null = null;
@@ -223,13 +230,20 @@ export async function getFundingRateHistory(
     const url: string =
       `${BASE}/api/v1/market/funding-rate-history?instId=${encodeURIComponent(instId)}&limit=100` +
       (cursor !== null ? `&after=${cursor}` : "");
-    const data: BlofinFundingHistoryEntry[] | null =
-      await getEnvelope<BlofinFundingHistoryEntry[]>(url);
-    if (!data || data.length === 0) break;
+    let data: BlofinFundingHistoryEntry[] | null = null;
+    for (let attempt = 0; attempt < 4 && data === null; attempt++) {
+      if (attempt > 0) await new Promise((r) => setTimeout(r, 1000 * 3 ** (attempt - 1)));
+      data = await getEnvelope<BlofinFundingHistoryEntry[]>(url);
+    }
+    if (data === null) {
+      throw new Error(`funding-rate-history ${instId}: page ${page} failed after 4 attempts (rate limit?)`);
+    }
+    if (data.length === 0) break; // genuine end of history
     out.push(...data);
     const oldest: number = Number(data[data.length - 1]!.fundingTime);
     if (!Number.isFinite(oldest) || oldest <= fromMs) break;
     cursor = oldest;
+    await new Promise((r) => setTimeout(r, pageDelayMs));
   }
   return out
     .filter((e) => Number(e.fundingTime) >= fromMs)

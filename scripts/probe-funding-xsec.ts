@@ -25,6 +25,13 @@
  *   3. gross mean ≥ 14 bps per rebalance (= survives 50%-turnover costs at
  *      the locked 14bps/leg round-trip cost model).
  * FAIL → C5.
+ *
+ * `--window-days N` (default 365) extends the window; the 3y run
+ * (--window-days 1095) is the agreed higher-powered re-test of the SAME
+ * construction and criteria. For long windows, symbols with partial history
+ * (newer listings) participate only where they have data — membership is
+ * resolved per settlement, which also reduces the survivorship bias of the
+ * fixed-universe 1y run.
  */
 
 import { promises as fs } from "node:fs";
@@ -33,7 +40,14 @@ import type { Candle } from "../src/analysis/indicators.js";
 
 const UNIVERSE_SIZE = 30;
 const MIN_SYMBOLS_PER_SETTLEMENT = 20;
-const WINDOW_DAYS = 365;
+const windowArgIdx = process.argv.indexOf("--window-days");
+const WINDOW_DAYS = windowArgIdx > -1 ? Number(process.argv[windowArgIdx + 1]) : 365;
+if (!Number.isFinite(WINDOW_DAYS) || WINDOW_DAYS < 90) {
+  console.error("--window-days must be a number ≥ 90");
+  process.exit(1);
+}
+/** Symbols need at least this much history to ever enter a cross-section. */
+const MIN_SYMBOL_BARS = 90 * 24;
 const HORIZONS_H = [8, 24, 72];
 const PAGE_LIMIT = 1440;
 const COST_PER_LEG_RT = 0.0014; // 14 bps round-trip per leg (PRD §9.3+9.4)
@@ -44,13 +58,21 @@ async function fetch1hCandles(instId: string, fromMs: number, toMs: number): Pro
   const all: Candle[] = [];
   let cursor = toMs;
   for (let page = 0; page < 30; page++) {
-    const batch = await getNativeCandles(instId, "1H", { after: cursor, limit: PAGE_LIMIT });
+    // getNativeCandles returns [] on BOTH errors and end-of-history. An empty
+    // batch inside our window is usually a rate-limit hit, not a listing
+    // boundary — retry with backoff before accepting it as the end.
+    let batch: Candle[] = [];
+    for (let attempt = 0; attempt < 4; attempt++) {
+      if (attempt > 0) await sleep(1000 * 3 ** (attempt - 1));
+      batch = await getNativeCandles(instId, "1H", { after: cursor, limit: PAGE_LIMIT });
+      if (batch.length > 0) break;
+    }
     if (batch.length === 0) break;
     all.push(...batch);
     const oldestMs = batch[0]!.t * 1000;
     if (oldestMs <= fromMs) break;
     cursor = oldestMs;
-    await sleep(200);
+    await sleep(300);
   }
   const seen = new Set<number>();
   return all
@@ -73,10 +95,26 @@ interface TickerRow {
   volCurrency24h?: string;
   volCurrencyQuote24h?: string;
 }
-const tickersRes = await fetch("https://openapi.blofin.com/api/v1/market/tickers");
-const tickersJson = (await tickersRes.json()) as { code: string; data: TickerRow[] };
-if (tickersJson.code !== "0") {
-  console.error("tickers fetch failed");
+// Plain fetch with retry — a rate-limit response here is an HTML page, not
+// JSON, so parse defensively and back off (the limiter can persist a while
+// after a heavy run).
+let tickersJson: { code: string; data: TickerRow[] } | null = null;
+for (let attempt = 0; attempt < 6 && tickersJson === null; attempt++) {
+  if (attempt > 0) {
+    const delay = 2000 * 3 ** (attempt - 1);
+    console.log(`  tickers fetch retry in ${Math.round(delay / 1000)}s...`);
+    await sleep(delay);
+  }
+  try {
+    const res = await fetch("https://openapi.blofin.com/api/v1/market/tickers");
+    const parsed = (await res.json()) as { code: string; data: TickerRow[] };
+    if (parsed.code === "0") tickersJson = parsed;
+  } catch {
+    // HTML rate-limit page or network hiccup — retry
+  }
+}
+if (!tickersJson) {
+  console.error("tickers fetch failed after 6 attempts");
   process.exit(1);
 }
 const ranked = tickersJson.data
@@ -89,11 +127,11 @@ const ranked = tickersJson.data
   }))
   .filter((t) => Number.isFinite(t.qv) && t.qv > 0)
   .sort((a, b) => b.qv - a.qv)
-  .slice(0, UNIVERSE_SIZE + 8); // overfetch; coverage filter trims below
+  .slice(0, UNIVERSE_SIZE + 15); // overfetch; coverage filter trims below
 console.log(`  ${ranked.length} candidates: ${ranked.slice(0, 10).map((r) => r.instId).join(", ")}, ...`);
 
 // ---- [2/4] Fetch candles + funding per symbol ----
-console.log(`\n[2/4] fetching 1y of 1H candles + funding history per symbol...`);
+console.log(`\n[2/4] fetching ${WINDOW_DAYS}d of 1H candles + funding history per symbol...`);
 interface SymData {
   instId: string;
   candles: Candle[];
@@ -109,17 +147,23 @@ const symbols: SymData[] = [];
 for (const cand of ranked) {
   if (symbols.length >= UNIVERSE_SIZE) break;
   const candles = await fetch1hCandles(cand.instId, FROM_MS, TO_MS);
-  if (candles.length < WINDOW_DAYS * 24 * 0.97) {
-    console.log(`  ${cand.instId}: only ${candles.length} bars (<97% coverage) — drop`);
+  if (candles.length < MIN_SYMBOL_BARS) {
+    console.log(`  ${cand.instId}: only ${candles.length} bars (<90d) — drop`);
     continue;
   }
-  const fundingRaw = await getFundingRateHistory(cand.instId, FROM_MS - 8 * 3_600_000);
+  let fundingRaw;
+  try {
+    fundingRaw = await getFundingRateHistory(cand.instId, FROM_MS - 8 * 3_600_000);
+  } catch (err) {
+    console.log(`  ${cand.instId}: funding fetch failed (${(err as Error).message}) — drop`);
+    continue;
+  }
   const funding = new Map<number, number>();
   for (const f of fundingRaw) {
     const tMs = Number(f.fundingTime);
     if (tMs < TO_MS) funding.set(tMs, Number(f.fundingRate));
   }
-  if (funding.size < (WINDOW_DAYS * 3) * 0.97) {
+  if (funding.size < MIN_SYMBOL_BARS / 8) {
     console.log(`  ${cand.instId}: only ${funding.size} settlements — drop`);
     continue;
   }
@@ -200,6 +244,9 @@ for (const tMs of btc.settleTimes) {
     if (rate === undefined) continue;
     const entryIdx = firstBarAtOrAfter(s, tMs);
     if (entryIdx + maxH >= s.candles.length) continue;
+    // Entry bar must start within an hour of the settlement — a partial-history
+    // symbol whose listing postdates tMs would otherwise map to its first bar.
+    if (s.barTimesMs[entryIdx]! - tMs > 3_600_000) continue;
     if (s.candles[entryIdx + maxH]!.t - s.candles[entryIdx]!.t !== maxH * 3600) continue;
     entries.push({ sym: s, rate: rate / (s.cycleMs / 3_600_000), entryIdx });
   }
@@ -254,7 +301,7 @@ console.log(`  ${rows.length} settlement cross-sections (universe of ${symbols.l
 
 await fs.mkdir("logs", { recursive: true });
 const tag = new Date(TO_MS).toISOString().slice(0, 10);
-const outPath = `logs/probe-funding-xsec-${tag}.json`;
+const outPath = `logs/probe-funding-xsec-${WINDOW_DAYS}d-${tag}.json`;
 await fs.writeFile(
   outPath,
   JSON.stringify({ fromMs: FROM_MS, toMs: TO_MS, universe: symbols.map((s) => s.instId), horizons: HORIZONS_H, rows }, null, 2),
