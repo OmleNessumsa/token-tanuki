@@ -1,0 +1,1300 @@
+{
+  "windowDays": 60,
+  "fromSec": 1775995200,
+  "toSec": 1781179200,
+  "syms": [
+    "BTC-USDT",
+    "ETH-USDT",
+    "SOL-USDT",
+    "XRP-USDT",
+    "DOGE-USDT"
+  ],
+  "fixed": {
+    "warmupBars": 200,
+    "cooldownBars": 6,
+    "stage2SmaPeriod": 150,
+    "requireBreakout": false
+  },
+  "rows": [
+    {
+      "id": "1h-LONG-c55-s2T-atr1.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 373,
+      "netExp": -0.25992050639286496,
+      "netTotalR": -96.95034888453863,
+      "sharpe": -0.22699403489599007,
+      "topSymShare": 0.3686170436643215
+    },
+    {
+      "id": "1h-SHORT-c55-s2T-atr1.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 63,
+      "netExp": -0.11795690174487916,
+      "netTotalR": -7.431284809927387,
+      "sharpe": -0.1250719604197292,
+      "topSymShare": 0.48930160882454865
+    },
+    {
+      "id": "1h-LONG-c55-s2T-atr2.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 373,
+      "netExp": -0.16088341449832777,
+      "netTotalR": -60.00951360787626,
+      "sharpe": -0.20583016232549844,
+      "topSymShare": 0.31954072003932554
+    },
+    {
+      "id": "1h-SHORT-c55-s2T-atr2.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 63,
+      "netExp": -0.08281633748129434,
+      "netTotalR": -5.217429261321543,
+      "sharpe": -0.1392748653333051,
+      "topSymShare": 0.43375153252120124
+    },
+    {
+      "id": "1h-LONG-c55-s2F-atr1.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 554,
+      "netExp": -0.2347414503146469,
+      "netTotalR": -130.0467634743144,
+      "sharpe": -0.22245124088956514,
+      "topSymShare": 0.29072699363755955
+    },
+    {
+      "id": "1h-SHORT-c55-s2F-atr1.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 67,
+      "netExp": -0.10454847162349704,
+      "netTotalR": -7.004747598774301,
+      "sharpe": -0.10754955928289507,
+      "topSymShare": 0.35625765105430923
+    },
+    {
+      "id": "1h-LONG-c55-s2F-atr2.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 554,
+      "netExp": -0.14124475169261944,
+      "netTotalR": -78.24959243771117,
+      "sharpe": -0.19865362887997973,
+      "topSymShare": 0.2548305977292539
+    },
+    {
+      "id": "1h-SHORT-c55-s2F-atr2.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 67,
+      "netExp": -0.07411404994597585,
+      "netTotalR": -4.965641346380382,
+      "sharpe": -0.12154581979299736,
+      "topSymShare": 0.32763586744517614
+    },
+    {
+      "id": "1h-LONG-c60-s2T-atr1.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 362,
+      "netExp": -0.26251337311014755,
+      "netTotalR": -95.02984106587341,
+      "sharpe": -0.25130056744152285,
+      "topSymShare": 0.34964885499360665
+    },
+    {
+      "id": "1h-SHORT-c60-s2T-atr1.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 26,
+      "netExp": 0.08612597752996229,
+      "netTotalR": 2.2392754157790193,
+      "sharpe": 0.07215423867952431,
+      "topSymShare": 0.33761288849864085
+    },
+    {
+      "id": "1h-LONG-c60-s2T-atr2.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 362,
+      "netExp": -0.16983077523575538,
+      "netTotalR": -61.47874063534345,
+      "sharpe": -0.23847426877442932,
+      "topSymShare": 0.27346330861050944
+    },
+    {
+      "id": "1h-SHORT-c60-s2T-atr2.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 26,
+      "netExp": 0.04404650898661118,
+      "netTotalR": 1.1452092336518906,
+      "sharpe": 0.05997478049857193,
+      "topSymShare": 0.3552535667428315
+    },
+    {
+      "id": "1h-LONG-c60-s2F-atr1.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 527,
+      "netExp": -0.2504697915402979,
+      "netTotalR": -131.997580141737,
+      "sharpe": -0.25568491140394256,
+      "topSymShare": 0.3006346626743963
+    },
+    {
+      "id": "1h-SHORT-c60-s2F-atr1.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 28,
+      "netExp": 0.014493304670457865,
+      "netTotalR": 0.4058125307728202,
+      "sharpe": 0.012283300092322398,
+      "topSymShare": 0.316362922180222
+    },
+    {
+      "id": "1h-LONG-c60-s2F-atr2.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 527,
+      "netExp": -0.1565437186310446,
+      "netTotalR": -82.49853971856051,
+      "sharpe": -0.23616433977218262,
+      "topSymShare": 0.24737187492313606
+    },
+    {
+      "id": "1h-SHORT-c60-s2F-atr2.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 28,
+      "netExp": 0.0014641818177670018,
+      "netTotalR": 0.04099709089747605,
+      "sharpe": 0.0020202407262782597,
+      "topSymShare": 0.3718867289892226
+    },
+    {
+      "id": "1h-LONG-c65-s2T-atr1.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 338,
+      "netExp": -0.2580911715250627,
+      "netTotalR": -87.2348159754712,
+      "sharpe": -0.2617774776156712,
+      "topSymShare": 0.3534295559047957
+    },
+    {
+      "id": "1h-SHORT-c65-s2T-atr1.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": -0.31000624217828077,
+      "netTotalR": -2.790056179604527,
+      "sharpe": -0.339008803744251,
+      "topSymShare": 0.6483596264624546
+    },
+    {
+      "id": "1h-LONG-c65-s2T-atr2.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 338,
+      "netExp": -0.17499552610343427,
+      "netTotalR": -59.14848782296079,
+      "sharpe": -0.2543308876198081,
+      "topSymShare": 0.3007301361530691
+    },
+    {
+      "id": "1h-SHORT-c65-s2T-atr2.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": -0.1466786727008026,
+      "netTotalR": -1.3201080543072234,
+      "sharpe": -0.281654760357269,
+      "topSymShare": 0.7096937812348313
+    },
+    {
+      "id": "1h-LONG-c65-s2F-atr1.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 480,
+      "netExp": -0.2547031263545139,
+      "netTotalR": -122.25750065016668,
+      "sharpe": -0.270852092907458,
+      "topSymShare": 0.30973897168367553
+    },
+    {
+      "id": "1h-SHORT-c65-s2F-atr1.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": -0.31000624217828077,
+      "netTotalR": -2.790056179604527,
+      "sharpe": -0.339008803744251,
+      "topSymShare": 0.6483596264624546
+    },
+    {
+      "id": "1h-LONG-c65-s2F-atr2.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 480,
+      "netExp": -0.1748134436281368,
+      "netTotalR": -83.91045294150567,
+      "sharpe": -0.26889753894919155,
+      "topSymShare": 0.28273604994854745
+    },
+    {
+      "id": "1h-SHORT-c65-s2F-atr2.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": -0.1466786727008026,
+      "netTotalR": -1.3201080543072234,
+      "sharpe": -0.281654760357269,
+      "topSymShare": 0.7096937812348313
+    },
+    {
+      "id": "1h-LONG-c70-s2T-atr1.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 297,
+      "netExp": -0.23480414872602612,
+      "netTotalR": -69.73683217162976,
+      "sharpe": -0.21480345743878254,
+      "topSymShare": 0.3728460488647561
+    },
+    {
+      "id": "1h-SHORT-c70-s2T-atr1.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.36334655789511805,
+      "netTotalR": 1.4533862315804722,
+      "sharpe": 0.2718810249311221,
+      "topSymShare": 0.4463825444545671
+    },
+    {
+      "id": "1h-LONG-c70-s2T-atr2.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 297,
+      "netExp": -0.14974057339641927,
+      "netTotalR": -44.47295029873653,
+      "sharpe": -0.20002588629637363,
+      "topSymShare": 0.31239613073041944
+    },
+    {
+      "id": "1h-SHORT-c70-s2T-atr2.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.27000135493216815,
+      "netTotalR": 1.0800054197286726,
+      "sharpe": 0.37640993339985207,
+      "topSymShare": 0.5529911390697546
+    },
+    {
+      "id": "1h-LONG-c70-s2F-atr1.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 409,
+      "netExp": -0.21785277095633107,
+      "netTotalR": -89.10178332113941,
+      "sharpe": -0.20992549715987688,
+      "topSymShare": 0.376414054921927
+    },
+    {
+      "id": "1h-SHORT-c70-s2F-atr1.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.36334655789511805,
+      "netTotalR": 1.4533862315804722,
+      "sharpe": 0.2718810249311221,
+      "topSymShare": 0.4463825444545671
+    },
+    {
+      "id": "1h-LONG-c70-s2F-atr2.5-h6",
+      "horizon": 6,
+      "side": "LONG",
+      "trades": 409,
+      "netExp": -0.14236085882152894,
+      "netTotalR": -58.22559125800533,
+      "sharpe": -0.20200970640523633,
+      "topSymShare": 0.2963806794288512
+    },
+    {
+      "id": "1h-SHORT-c70-s2F-atr2.5-h6",
+      "horizon": 6,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.27000135493216815,
+      "netTotalR": 1.0800054197286726,
+      "sharpe": 0.37640993339985207,
+      "topSymShare": 0.5529911390697546
+    },
+    {
+      "id": "1h-LONG-c55-s2T-atr1.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 369,
+      "netExp": -0.30967825739012766,
+      "netTotalR": -114.27127697695711,
+      "sharpe": -0.21873601229987405,
+      "topSymShare": 0.3927981259576843
+    },
+    {
+      "id": "1h-SHORT-c55-s2T-atr1.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 63,
+      "netExp": -0.11665070382395784,
+      "netTotalR": -7.348994340909344,
+      "sharpe": -0.10477854292984201,
+      "topSymShare": 0.6459823583927985
+    },
+    {
+      "id": "1h-LONG-c55-s2T-atr2.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 369,
+      "netExp": -0.21461661340310784,
+      "netTotalR": -79.1935303457468,
+      "sharpe": -0.21548483834660564,
+      "topSymShare": 0.31396166502449496
+    },
+    {
+      "id": "1h-SHORT-c55-s2T-atr2.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 63,
+      "netExp": -0.004556817062588968,
+      "netTotalR": -0.287079474943105,
+      "sharpe": -0.006088420361060046,
+      "topSymShare": 0.4618327356265803
+    },
+    {
+      "id": "1h-LONG-c55-s2F-atr1.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 550,
+      "netExp": -0.3177120848387026,
+      "netTotalR": -174.74164666128644,
+      "sharpe": -0.2487960806547521,
+      "topSymShare": 0.29454786088897805
+    },
+    {
+      "id": "1h-SHORT-c55-s2F-atr1.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 67,
+      "netExp": -0.10059446100317937,
+      "netTotalR": -6.739828887213018,
+      "sharpe": -0.0878951903046473,
+      "topSymShare": 0.5556040481746196
+    },
+    {
+      "id": "1h-LONG-c55-s2F-atr2.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 550,
+      "netExp": -0.19238265280867622,
+      "netTotalR": -105.81045904477192,
+      "sharpe": -0.21297573732297617,
+      "topSymShare": 0.25763295200531117
+    },
+    {
+      "id": "1h-SHORT-c55-s2F-atr2.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 67,
+      "netExp": 0.007716327494549363,
+      "netTotalR": 0.5169939421348073,
+      "sharpe": 0.010209477558336422,
+      "topSymShare": 0.4084919474864739
+    },
+    {
+      "id": "1h-LONG-c60-s2T-atr1.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 358,
+      "netExp": -0.311001921955142,
+      "netTotalR": -111.33868805994084,
+      "sharpe": -0.23509082329214676,
+      "topSymShare": 0.40795149987485535
+    },
+    {
+      "id": "1h-SHORT-c60-s2T-atr1.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 26,
+      "netExp": 0.1189059429161832,
+      "netTotalR": 3.0915545158207633,
+      "sharpe": 0.09224146114193676,
+      "topSymShare": 0.47334393830905025
+    },
+    {
+      "id": "1h-LONG-c60-s2T-atr2.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 358,
+      "netExp": -0.2234101881175755,
+      "netTotalR": -79.98084734609202,
+      "sharpe": -0.2410799328038098,
+      "topSymShare": 0.28287208954367365
+    },
+    {
+      "id": "1h-SHORT-c60-s2T-atr2.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 26,
+      "netExp": 0.2801335373283775,
+      "netTotalR": 7.283471970537814,
+      "sharpe": 0.3480577853179627,
+      "topSymShare": 0.5452457759009758
+    },
+    {
+      "id": "1h-LONG-c60-s2F-atr1.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 523,
+      "netExp": -0.3187420570418524,
+      "netTotalR": -166.7020958328888,
+      "sharpe": -0.26351912233944635,
+      "topSymShare": 0.3275898924112879
+    },
+    {
+      "id": "1h-SHORT-c60-s2F-atr1.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 28,
+      "netExp": 0.023339613487643827,
+      "netTotalR": 0.6535091776540272,
+      "sharpe": 0.018103230395932497,
+      "topSymShare": 0.4842928567346201
+    },
+    {
+      "id": "1h-LONG-c60-s2F-atr2.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 523,
+      "netExp": -0.19669087331677337,
+      "netTotalR": -102.86932674467248,
+      "sharpe": -0.2298211645091831,
+      "topSymShare": 0.26417754217714723
+    },
+    {
+      "id": "1h-SHORT-c60-s2F-atr2.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 28,
+      "netExp": 0.2235435325892101,
+      "netTotalR": 6.259218912497882,
+      "sharpe": 0.27773786483558993,
+      "topSymShare": 0.491022357049474
+    },
+    {
+      "id": "1h-LONG-c65-s2T-atr1.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 335,
+      "netExp": -0.31820698659962426,
+      "netTotalR": -106.59934051087413,
+      "sharpe": -0.2561750580865875,
+      "topSymShare": 0.4028961528232633
+    },
+    {
+      "id": "1h-SHORT-c65-s2T-atr1.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": -0.3144681079015108,
+      "netTotalR": -2.8302129711135975,
+      "sharpe": -0.2813169306769775,
+      "topSymShare": 0.6944048525907363
+    },
+    {
+      "id": "1h-LONG-c65-s2T-atr2.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 335,
+      "netExp": -0.22266170412251443,
+      "netTotalR": -74.59167088104233,
+      "sharpe": -0.24950914531343504,
+      "topSymShare": 0.2997697773070999
+    },
+    {
+      "id": "1h-SHORT-c65-s2T-atr2.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": 0.2532847461051735,
+      "netTotalR": 2.2795627149465614,
+      "sharpe": 0.2837135913454848,
+      "topSymShare": 0.7754107118887215
+    },
+    {
+      "id": "1h-LONG-c65-s2F-atr1.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 477,
+      "netExp": -0.34768075989527286,
+      "netTotalR": -165.84372247004515,
+      "sharpe": -0.30520418929543447,
+      "topSymShare": 0.3413577504201691
+    },
+    {
+      "id": "1h-SHORT-c65-s2F-atr1.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": -0.3144681079015108,
+      "netTotalR": -2.8302129711135975,
+      "sharpe": -0.2813169306769775,
+      "topSymShare": 0.6944048525907363
+    },
+    {
+      "id": "1h-LONG-c65-s2F-atr2.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 477,
+      "netExp": -0.22177426069346093,
+      "netTotalR": -105.78632235078086,
+      "sharpe": -0.2652621912440179,
+      "topSymShare": 0.2922901674002214
+    },
+    {
+      "id": "1h-SHORT-c65-s2F-atr2.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": 0.2532847461051735,
+      "netTotalR": 2.2795627149465614,
+      "sharpe": 0.2837135913454848,
+      "topSymShare": 0.7754107118887215
+    },
+    {
+      "id": "1h-LONG-c70-s2T-atr1.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 294,
+      "netExp": -0.29054021688004034,
+      "netTotalR": -85.41882376273186,
+      "sharpe": -0.21155078335733735,
+      "topSymShare": 0.44992548110407893
+    },
+    {
+      "id": "1h-SHORT-c70-s2T-atr1.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.38142444619946614,
+      "netTotalR": 1.5256977847978646,
+      "sharpe": 0.310116978085973,
+      "topSymShare": 0.6895140866526831
+    },
+    {
+      "id": "1h-LONG-c70-s2T-atr2.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 294,
+      "netExp": -0.1958168981954394,
+      "netTotalR": -57.570168069459186,
+      "sharpe": -0.20269179717485847,
+      "topSymShare": 0.33184643891005866
+    },
+    {
+      "id": "1h-SHORT-c70-s2T-atr2.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.8914053063361042,
+      "netTotalR": 3.5656212253444166,
+      "sharpe": 1.2520568802802572,
+      "topSymShare": 0.7727129846828433
+    },
+    {
+      "id": "1h-LONG-c70-s2F-atr1.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 406,
+      "netExp": -0.3258923932750215,
+      "netTotalR": -132.31231166965873,
+      "sharpe": -0.2632628002621002,
+      "topSymShare": 0.37401327605482754
+    },
+    {
+      "id": "1h-SHORT-c70-s2F-atr1.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.38142444619946614,
+      "netTotalR": 1.5256977847978646,
+      "sharpe": 0.310116978085973,
+      "topSymShare": 0.6895140866526831
+    },
+    {
+      "id": "1h-LONG-c70-s2F-atr2.5-h12",
+      "horizon": 12,
+      "side": "LONG",
+      "trades": 406,
+      "netExp": -0.21417500862740346,
+      "netTotalR": -86.9550535027258,
+      "sharpe": -0.2420297734017806,
+      "topSymShare": 0.27420445377342334
+    },
+    {
+      "id": "1h-SHORT-c70-s2F-atr2.5-h12",
+      "horizon": 12,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.8914053063361042,
+      "netTotalR": 3.5656212253444166,
+      "sharpe": 1.2520568802802572,
+      "topSymShare": 0.7727129846828433
+    },
+    {
+      "id": "1h-LONG-c55-s2T-atr1.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 366,
+      "netExp": -0.34203002192094817,
+      "netTotalR": -125.18298802306704,
+      "sharpe": -0.21853168234606926,
+      "topSymShare": 0.34996583358522804
+    },
+    {
+      "id": "1h-SHORT-c55-s2T-atr1.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 61,
+      "netExp": 0.0006698543912407417,
+      "netTotalR": 0.04086111786568525,
+      "sharpe": 0.0004169083906241457,
+      "topSymShare": 0.5020915935771786
+    },
+    {
+      "id": "1h-LONG-c55-s2T-atr2.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 366,
+      "netExp": -0.22588082405159407,
+      "netTotalR": -82.67238160288343,
+      "sharpe": -0.19345591219922598,
+      "topSymShare": 0.33354880407765214
+    },
+    {
+      "id": "1h-SHORT-c55-s2T-atr2.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 61,
+      "netExp": 0.008079749303136149,
+      "netTotalR": 0.49286470749130507,
+      "sharpe": 0.007173586261576146,
+      "topSymShare": 0.41852401488338725
+    },
+    {
+      "id": "1h-LONG-c55-s2F-atr1.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 547,
+      "netExp": -0.3501482803395151,
+      "netTotalR": -191.53110934571478,
+      "sharpe": -0.24373618342708953,
+      "topSymShare": 0.2701622871902394
+    },
+    {
+      "id": "1h-SHORT-c55-s2F-atr1.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 65,
+      "netExp": 0.006563866564707046,
+      "netTotalR": 0.42665132670595796,
+      "sharpe": 0.004072108887814558,
+      "topSymShare": 0.5140514761625113
+    },
+    {
+      "id": "1h-LONG-c55-s2F-atr2.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 547,
+      "netExp": -0.23083300879840044,
+      "netTotalR": -126.26565581272504,
+      "sharpe": -0.21389082108635904,
+      "topSymShare": 0.26984095236278316
+    },
+    {
+      "id": "1h-SHORT-c55-s2F-atr2.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 65,
+      "netExp": 0.009845886754314522,
+      "netTotalR": 0.639982639030444,
+      "sharpe": 0.008770041830195075,
+      "topSymShare": 0.3093482532449409
+    },
+    {
+      "id": "1h-LONG-c60-s2T-atr1.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 355,
+      "netExp": -0.31125129178064487,
+      "netTotalR": -110.49420858212892,
+      "sharpe": -0.20137670795710783,
+      "topSymShare": 0.37981110398938145
+    },
+    {
+      "id": "1h-SHORT-c60-s2T-atr1.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 26,
+      "netExp": 0.22651720458382676,
+      "netTotalR": 5.889447319179496,
+      "sharpe": 0.12967667304136718,
+      "topSymShare": 0.40356208366657054
+    },
+    {
+      "id": "1h-LONG-c60-s2T-atr2.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 355,
+      "netExp": -0.22121936249030147,
+      "netTotalR": -78.53287368405702,
+      "sharpe": -0.19673530679147283,
+      "topSymShare": 0.3141709826657037
+    },
+    {
+      "id": "1h-SHORT-c60-s2T-atr2.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 26,
+      "netExp": 0.29119195933709247,
+      "netTotalR": 7.570990942764404,
+      "sharpe": 0.24545352740734946,
+      "topSymShare": 0.5624871797650604
+    },
+    {
+      "id": "1h-LONG-c60-s2F-atr1.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 520,
+      "netExp": -0.3379238155562559,
+      "netTotalR": -175.72038408925306,
+      "sharpe": -0.23844042913168612,
+      "topSymShare": 0.31034164497260164
+    },
+    {
+      "id": "1h-SHORT-c60-s2F-atr1.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 28,
+      "netExp": 0.12326435646474142,
+      "netTotalR": 3.4514019810127596,
+      "sharpe": 0.0715325788358977,
+      "topSymShare": 0.40762639213268376
+    },
+    {
+      "id": "1h-LONG-c60-s2F-atr2.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 520,
+      "netExp": -0.22782887282404188,
+      "netTotalR": -118.47101386850177,
+      "sharpe": -0.2178620832318092,
+      "topSymShare": 0.2667254584776564
+    },
+    {
+      "id": "1h-SHORT-c60-s2F-atr2.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 28,
+      "netExp": 0.21513598378926194,
+      "netTotalR": 6.023807546099334,
+      "sharpe": 0.18226610918403438,
+      "topSymShare": 0.5111742624847192
+    },
+    {
+      "id": "1h-LONG-c65-s2T-atr1.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 332,
+      "netExp": -0.2850701055243012,
+      "netTotalR": -94.64327503406798,
+      "sharpe": -0.18652329185594038,
+      "topSymShare": 0.38572940508933606
+    },
+    {
+      "id": "1h-SHORT-c65-s2T-atr1.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": -0.22922161618796258,
+      "netTotalR": -2.062994545691663,
+      "sharpe": -0.14532632179985283,
+      "topSymShare": 0.4950720399738578
+    },
+    {
+      "id": "1h-LONG-c65-s2T-atr2.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 332,
+      "netExp": -0.2187007348911055,
+      "netTotalR": -72.60864398384703,
+      "sharpe": -0.19681645453878585,
+      "topSymShare": 0.376916698009039
+    },
+    {
+      "id": "1h-SHORT-c65-s2T-atr2.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": 0.2889198787366266,
+      "netTotalR": 2.6002789086296394,
+      "sharpe": 0.22639016202217216,
+      "topSymShare": 0.7580403827897981
+    },
+    {
+      "id": "1h-LONG-c65-s2F-atr1.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 474,
+      "netExp": -0.32792968003682643,
+      "netTotalR": -155.43866833745574,
+      "sharpe": -0.23134381174577973,
+      "topSymShare": 0.3218553319183782
+    },
+    {
+      "id": "1h-SHORT-c65-s2F-atr1.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": -0.22922161618796258,
+      "netTotalR": -2.062994545691663,
+      "sharpe": -0.14532632179985283,
+      "topSymShare": 0.4950720399738578
+    },
+    {
+      "id": "1h-LONG-c65-s2F-atr2.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 474,
+      "netExp": -0.23054032388661047,
+      "netTotalR": -109.27611352225337,
+      "sharpe": -0.21941740434980883,
+      "topSymShare": 0.2723534366126038
+    },
+    {
+      "id": "1h-SHORT-c65-s2F-atr2.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": 0.2889198787366266,
+      "netTotalR": 2.6002789086296394,
+      "sharpe": 0.22639016202217216,
+      "topSymShare": 0.7580403827897981
+    },
+    {
+      "id": "1h-LONG-c70-s2T-atr1.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 292,
+      "netExp": -0.3202979722162404,
+      "netTotalR": -93.52700788714219,
+      "sharpe": -0.20725609930055325,
+      "topSymShare": 0.4391244091703303
+    },
+    {
+      "id": "1h-SHORT-c70-s2T-atr1.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.7831888841687309,
+      "netTotalR": 3.1327555366749236,
+      "sharpe": 0.4442940818140163,
+      "topSymShare": 0.8754050242889515
+    },
+    {
+      "id": "1h-LONG-c70-s2T-atr2.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 292,
+      "netExp": -0.24802814735401107,
+      "netTotalR": -72.42421902737124,
+      "sharpe": -0.22432851511848836,
+      "topSymShare": 0.35818961771341123
+    },
+    {
+      "id": "1h-SHORT-c70-s2T-atr2.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 1.318296839893966,
+      "netTotalR": 5.273187359575864,
+      "sharpe": 1.2263194434744908,
+      "topSymShare": 0.6752227826370537
+    },
+    {
+      "id": "1h-LONG-c70-s2F-atr1.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 404,
+      "netExp": -0.36650362184508206,
+      "netTotalR": -148.06746322541315,
+      "sharpe": -0.2585155660249026,
+      "topSymShare": 0.3577800259419849
+    },
+    {
+      "id": "1h-SHORT-c70-s2F-atr1.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 0.7831888841687309,
+      "netTotalR": 3.1327555366749236,
+      "sharpe": 0.4442940818140163,
+      "topSymShare": 0.8754050242889515
+    },
+    {
+      "id": "1h-LONG-c70-s2F-atr2.5-h24",
+      "horizon": 24,
+      "side": "LONG",
+      "trades": 404,
+      "netExp": -0.26811042460737833,
+      "netTotalR": -108.31661154138084,
+      "sharpe": -0.2590128578714888,
+      "topSymShare": 0.2892273544329975
+    },
+    {
+      "id": "1h-SHORT-c70-s2F-atr2.5-h24",
+      "horizon": 24,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 1.318296839893966,
+      "netTotalR": 5.273187359575864,
+      "sharpe": 1.2263194434744908,
+      "topSymShare": 0.6752227826370537
+    },
+    {
+      "id": "1h-LONG-c55-s2T-atr1.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 364,
+      "netExp": -0.30440835413011513,
+      "netTotalR": -110.80464090336191,
+      "sharpe": -0.1626045014232832,
+      "topSymShare": 0.32895641617295296
+    },
+    {
+      "id": "1h-SHORT-c55-s2T-atr1.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 60,
+      "netExp": -0.007192989647742284,
+      "netTotalR": -0.431579378864537,
+      "sharpe": -0.0037766536642690426,
+      "topSymShare": 0.4912146223216002
+    },
+    {
+      "id": "1h-LONG-c55-s2T-atr2.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 364,
+      "netExp": -0.16236009471413954,
+      "netTotalR": -59.09907447594679,
+      "sharpe": -0.11199895241336168,
+      "topSymShare": 0.34080330730534697
+    },
+    {
+      "id": "1h-SHORT-c55-s2T-atr2.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 60,
+      "netExp": -0.037553687394239595,
+      "netTotalR": -2.2532212436543757,
+      "sharpe": -0.027855744924054786,
+      "topSymShare": 0.4483561320019094
+    },
+    {
+      "id": "1h-LONG-c55-s2F-atr1.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 543,
+      "netExp": -0.4026834801541022,
+      "netTotalR": -218.6571297236775,
+      "sharpe": -0.24054971522488888,
+      "topSymShare": 0.2713938081195371
+    },
+    {
+      "id": "1h-SHORT-c55-s2F-atr1.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 64,
+      "netExp": -0.04913346522303573,
+      "netTotalR": -3.1445417742742867,
+      "sharpe": -0.026351373299794974,
+      "topSymShare": 0.44590529194630274
+    },
+    {
+      "id": "1h-LONG-c55-s2F-atr2.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 543,
+      "netExp": -0.2663187379837752,
+      "netTotalR": -144.61107472518992,
+      "sharpe": -0.20658115379555,
+      "topSymShare": 0.3128220563698893
+    },
+    {
+      "id": "1h-SHORT-c55-s2F-atr2.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 64,
+      "netExp": -0.06247449645258524,
+      "netTotalR": -3.998367772965455,
+      "sharpe": -0.04740302537678885,
+      "topSymShare": 0.4679397680664664
+    },
+    {
+      "id": "1h-LONG-c60-s2T-atr1.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 354,
+      "netExp": -0.2673525002641324,
+      "netTotalR": -94.64278509350285,
+      "sharpe": -0.13819539212021129,
+      "topSymShare": 0.3666636199167851
+    },
+    {
+      "id": "1h-SHORT-c60-s2T-atr1.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 25,
+      "netExp": 0.42567193615941684,
+      "netTotalR": 10.64179840398542,
+      "sharpe": 0.19048926979310435,
+      "topSymShare": 0.40473734244046605
+    },
+    {
+      "id": "1h-LONG-c60-s2T-atr2.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 354,
+      "netExp": -0.1680104373855527,
+      "netTotalR": -59.475694834485665,
+      "sharpe": -0.11662327636897603,
+      "topSymShare": 0.33488001181617566
+    },
+    {
+      "id": "1h-SHORT-c60-s2T-atr2.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 25,
+      "netExp": 0.3670578689025568,
+      "netTotalR": 9.17644672256392,
+      "sharpe": 0.24175936303670623,
+      "topSymShare": 0.5130707484645964
+    },
+    {
+      "id": "1h-LONG-c60-s2F-atr1.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 517,
+      "netExp": -0.38038965423356014,
+      "netTotalR": -196.6614512387506,
+      "sharpe": -0.21983538719268078,
+      "topSymShare": 0.308389336879891
+    },
+    {
+      "id": "1h-SHORT-c60-s2F-atr1.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 27,
+      "netExp": 0.3038427061414327,
+      "netTotalR": 8.203753065818683,
+      "sharpe": 0.13864800877898587,
+      "topSymShare": 0.40759531207608063
+    },
+    {
+      "id": "1h-LONG-c60-s2F-atr2.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 517,
+      "netExp": -0.2676393047860794,
+      "netTotalR": -138.36952057440305,
+      "sharpe": -0.20761320091675403,
+      "topSymShare": 0.31108468127297817
+    },
+    {
+      "id": "1h-SHORT-c60-s2F-atr2.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 27,
+      "netExp": 0.2830921531698926,
+      "netTotalR": 7.643488135587101,
+      "sharpe": 0.1894732931660228,
+      "topSymShare": 0.47139372791784834
+    },
+    {
+      "id": "1h-LONG-c65-s2T-atr1.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 331,
+      "netExp": -0.2619778550229001,
+      "netTotalR": -86.71467001257993,
+      "sharpe": -0.13582107751344547,
+      "topSymShare": 0.3344903111188079
+    },
+    {
+      "id": "1h-SHORT-c65-s2T-atr1.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": 0.0949142778417254,
+      "netTotalR": 0.8542285005755286,
+      "sharpe": 0.0431410918782296,
+      "topSymShare": 0.496448241420844
+    },
+    {
+      "id": "1h-LONG-c65-s2T-atr2.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 331,
+      "netExp": -0.16972963184473558,
+      "netTotalR": -56.18050814060748,
+      "sharpe": -0.11725288273139048,
+      "topSymShare": 0.3656809883523106
+    },
+    {
+      "id": "1h-SHORT-c65-s2T-atr2.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": 0.25973089870477306,
+      "netTotalR": 2.3375780883429575,
+      "sharpe": 0.15532995769100275,
+      "topSymShare": 0.7471540707602502
+    },
+    {
+      "id": "1h-LONG-c65-s2F-atr1.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 472,
+      "netExp": -0.36598805165414655,
+      "netTotalR": -172.74636038075718,
+      "sharpe": -0.20848372784941477,
+      "topSymShare": 0.29870071446757246
+    },
+    {
+      "id": "1h-SHORT-c65-s2F-atr1.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": 0.0949142778417254,
+      "netTotalR": 0.8542285005755286,
+      "sharpe": 0.0431410918782296,
+      "topSymShare": 0.496448241420844
+    },
+    {
+      "id": "1h-LONG-c65-s2F-atr2.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 472,
+      "netExp": -0.2808348942724443,
+      "netTotalR": -132.5540700965937,
+      "sharpe": -0.21404419473192543,
+      "topSymShare": 0.2886443988430031
+    },
+    {
+      "id": "1h-SHORT-c65-s2F-atr2.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 9,
+      "netExp": 0.25973089870477306,
+      "netTotalR": 2.3375780883429575,
+      "sharpe": 0.15532995769100275,
+      "topSymShare": 0.7471540707602502
+    },
+    {
+      "id": "1h-LONG-c70-s2T-atr1.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 290,
+      "netExp": -0.3329575588117544,
+      "netTotalR": -96.55769205540876,
+      "sharpe": -0.17402907513250201,
+      "topSymShare": 0.497214953288673
+    },
+    {
+      "id": "1h-SHORT-c70-s2T-atr1.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 1.5881478582578685,
+      "netTotalR": 6.352591433031474,
+      "sharpe": 0.6117685262750984,
+      "topSymShare": 0.5771816114632372
+    },
+    {
+      "id": "1h-LONG-c70-s2T-atr2.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 290,
+      "netExp": -0.18500305626182495,
+      "netTotalR": -53.650886315929235,
+      "sharpe": -0.12814791182200383,
+      "topSymShare": 0.36111957795887906
+    },
+    {
+      "id": "1h-SHORT-c70-s2T-atr2.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 1.803358798744347,
+      "netTotalR": 7.213435194977388,
+      "sharpe": 1.5379499007154465,
+      "topSymShare": 0.686176114136241
+    },
+    {
+      "id": "1h-LONG-c70-s2F-atr1.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 402,
+      "netExp": -0.4350520175436788,
+      "netTotalR": -174.89091105255886,
+      "sharpe": -0.25208308894423553,
+      "topSymShare": 0.35087769205502856
+    },
+    {
+      "id": "1h-SHORT-c70-s2F-atr1.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 1.5881478582578685,
+      "netTotalR": 6.352591433031474,
+      "sharpe": 0.6117685262750984,
+      "topSymShare": 0.5771816114632372
+    },
+    {
+      "id": "1h-LONG-c70-s2F-atr2.5-h48",
+      "horizon": 48,
+      "side": "LONG",
+      "trades": 402,
+      "netExp": -0.2938522923702792,
+      "netTotalR": -118.12862153285224,
+      "sharpe": -0.22383325132269302,
+      "topSymShare": 0.2940056236959914
+    },
+    {
+      "id": "1h-SHORT-c70-s2F-atr2.5-h48",
+      "horizon": 48,
+      "side": "SHORT",
+      "trades": 4,
+      "netExp": 1.803358798744347,
+      "netTotalR": 7.213435194977388,
+      "sharpe": 1.5379499007154465,
+      "topSymShare": 0.686176114136241
+    }
+  ]
+}

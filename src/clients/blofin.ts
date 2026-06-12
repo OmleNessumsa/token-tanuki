@@ -196,6 +196,46 @@ export async function getFundingRate(instId: string): Promise<BlofinFundingRate 
   return data[0] ?? null;
 }
 
+/**
+ * Settled funding-rate history entry. `fundingTime` is the settlement
+ * timestamp (ms) at which `fundingRate` was paid.
+ */
+export interface BlofinFundingHistoryEntry {
+  instId: string;
+  fundingRate: string;
+  fundingTime: string; // settlement time, ms
+}
+
+/**
+ * Paginated `/api/v1/market/funding-rate-history` fetch. The API returns
+ * newest-first; `after=T` pages to records with `fundingTime < T` (verified
+ * 2026-06-12). Returns entries with `fundingTime >= fromMs`, oldest-first.
+ * Stops early if the API runs out of history.
+ */
+export async function getFundingRateHistory(
+  instId: string,
+  fromMs: number,
+): Promise<BlofinFundingHistoryEntry[]> {
+  const out: BlofinFundingHistoryEntry[] = [];
+  let cursor: number | null = null;
+  // 200 pages × 100 entries × 8h cycles ≈ 18 years — generous hard stop.
+  for (let page = 0; page < 200; page++) {
+    const url: string =
+      `${BASE}/api/v1/market/funding-rate-history?instId=${encodeURIComponent(instId)}&limit=100` +
+      (cursor !== null ? `&after=${cursor}` : "");
+    const data: BlofinFundingHistoryEntry[] | null =
+      await getEnvelope<BlofinFundingHistoryEntry[]>(url);
+    if (!data || data.length === 0) break;
+    out.push(...data);
+    const oldest: number = Number(data[data.length - 1]!.fundingTime);
+    if (!Number.isFinite(oldest) || oldest <= fromMs) break;
+    cursor = oldest;
+  }
+  return out
+    .filter((e) => Number(e.fundingTime) >= fromMs)
+    .sort((a, b) => Number(a.fundingTime) - Number(b.fundingTime));
+}
+
 // --- Symbol cache + canonical resolver ---
 
 let cachedSymbols: Set<string> | null = null;
