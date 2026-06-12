@@ -117,6 +117,32 @@ Eén hypothese tegelijk volledig door de funnel.
 - Geen hertest van begraven hypotheses op "nog één ander window".
 - Geen multi-dag compute-runs; alles in dit plan past in minuten-tot-uren.
 
+## Uitkomst Fase 1+2 (zelfde dag, 2026-06-12 middag)
+
+Alle vier de hypotheses zijn dezelfde dag door de funnel gehaald — en alle
+vier gesneuveld, elk op een andere, leerzame manier:
+
+| Hypothese | Verdict | Doodsoorzaak | Probe |
+|---|---|---|---|
+| H1 momentum/reversal (daily) | FAIL Gate 1 | reversal-richting is FOUT (perps trenden); momentum consistent maar t=1.0-1.4 < 2.5 | `probe-xsec-momentum.ts` |
+| H2 lead-lag (1-4h) | FAIL Gate 3 | signaal ONOMSTOTELIJK echt (IC=0.04, t=24.8, 3y stabiel) maar 2-8bps gross vs 21.6bps kosten bij gemeten 77% turnover | `probe-leadlag.ts` + `-gate3.ts` |
+| H3 low-vol | FAIL Gate 3 | skew trap: rank-IC passt (t=3.25) maar tradeable spread -54bps/5d — moonshots slopen de short leg | `probe-lowvol.ts` |
+| H4 seasonality | FAIL Gate 1 | geen van 31 buckets bij \|t\|≥3.5; beste cellen = verwachte toevalstreffers | `probe-seasonality.ts` |
+
+Meta-beeld van deze markt (2023-2026, Blofin USDT-perps): **trending,
+rechts-scheef, lottery-betalend, met een reëel maar sub-cost
+microstructuur-reversal op 1h.** Constructies die impliciet short-trend of
+short-tail zijn, sterven steeds op dezelfde manier.
+
+Methodologische winst, herbruikbaar: `scripts/lib/bulk-fetch.ts` (disk-cache
++ rate-limit-hardening), het probe-patroon met pre-registered gates, de
+q1mq5-+-skew-check (les van H3), de gemeten-turnover cost-sim (les van H2).
+
+**Status: bij het pre-committed beslismoment (CB-015).** Opties: H5
+(liquidatie/OI-extremen — sterkste resterende mechanisme, vereist externe
+databron met live pricing-check) of definitief C5. Expliciete keuze van
+Elmo vereist; niet stilzwijgend doorgerold.
+
 ## Effort (gekalibreerd op Claude-uitvoering)
 
 | Onderdeel | Claude-tijd | Wall-clock |
