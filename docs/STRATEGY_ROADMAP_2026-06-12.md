@@ -143,6 +143,26 @@ q1mq5-+-skew-check (les van H3), de gemeten-turnover cost-sim (les van H2).
 databron met live pricing-check) of definitief C5. Expliciete keuze van
 Elmo vereist; niet stilzwijgend doorgerold.
 
+## Eindverdict (2026-06-12, ~14:30 — beslissing door Elmo gedelegeerd)
+
+Elmo delegeerde de keuze ("Jij bent in de lead"). Besluit: **H5a eerst als
+gratis proxy-probe, daarna C5 bij FAIL — en het werd FAIL.**
+
+H5a (`probe-cascade.ts`, |z|≥3 × volume≥3×mediaan, 8948 events, 3y):
+- CRASH→bounce: +23 tot +32bps (4-12h), 3/3 thirds — consistent maar
+  t=1.2-1.7 < 2.5 en op de stressed-cost-vloer in plaats van erboven.
+- PUMP→fade: **actief weerlegd** — pumps gaan dóór (+105bps @48h, t=2.05
+  in de verkeerde richting). Het halve forced-flow-mechanisme klopt niet
+  op deze markt.
+- H5b (externe liquidatie-data) niet gerechtvaardigd: benodigd effect is
+  3-4× de proxy en het mechanisme is half weerlegd.
+
+**C5 — definitief.** Negen hypothese-families getest en begraven in twee
+dagen. Heropen-condities staan in de memory
+(`final_verdict_c5_taker_alpha_dead`): een maker-execution-project rond
+het bewezen 1h-reversal-signaal, een écht nieuwe informatiebron, of een
+aantoonbare regime-shift. Verder niet.
+
 ## Effort (gekalibreerd op Claude-uitvoering)
 
 | Onderdeel | Claude-tijd | Wall-clock |
