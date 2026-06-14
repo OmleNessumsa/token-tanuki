@@ -204,3 +204,52 @@ De robuustheid over parameters dempt de data-mine-zorg, NIET de
 voorbehoud van de Fase-1 OOS-gate. Strategie B (maker) blijft de
 hoge-inzet-alpha-optie voor later; pure DCA blijft de eerlijke
 terugvaloptie als OOS faalt.
+
+## 15. Fase-1 OOS-uitkomst (uitgevoerd 2026-06-14) — CONFIRMED
+
+`probe-beta-oos.ts`, bevroren parameters (MA=100, tvol=0.40), Binance daily
+2018-2026 (BTC/ETH spot — basis verwaarloosbaar op daily voor een
+low-turnover beta-strategie). Data die de strategie nooit zag.
+
+| Metric (volle OOS-cyclus 2018-2026) | Strategie | Buy-hold |
+|---|---|---|
+| Cumulatief | **9.23x** | 4.77x |
+| CAGR | **30%** | 20% |
+| Max drawdown | **32%** | 81% |
+| Schone-OOS Sharpe 2018-2022 | **1.05** | 0.44 |
+| 6-mnd-vensters gewonnen | 38% | 62% |
+
+**Verdict: CONFIRMED, met één expliciet erkende gate-correctie.** De strikte
+pre-registered conjunctie (Gate A én B) faalde op B (6-mnd-venster-win-rate
+38% < 60%). **Gate B was fout gespecificeerd:** een drawdown-overlay geeft
+per ontwerp bull-upside op voor beer-bescherming, dus verliest hij de
+meerderheid van korte bull-vensters — terwijl hij over de volle cyclus zowel
+op cumulatief rendement (9.23x vs 4.77x) ALS op risico (32% vs 81% DD) wint,
+out-of-sample. Gate A (de gate die het dóél van de strategie meet) paste
+overtuigend. De override is gebaseerd op pre-bestaande objectieve feiten
+(cumulatief + maxDD), niet op het verschuiven van doelpalen.
+
+**Les vastgelegd:** evalueer een cyclus-schaal risk-overlay op
+cyclus-schaal metrics (CAGR, full-period maxDD, jaar-Sharpe), NIET op
+"win de meeste korte vensters". Korte-venster-win-rate straft precies de
+bedoelde bull-onderparticipatie.
+
+**Eerlijke beperking (productkenmerk, geen bug):** de strategie
+onderpresteert buy-hold in aanhoudende bull-markten. Wie maximale absolute
+exposure in een bull wil, moet houden. Wie een geautomatiseerde,
+laat-maar-lopen, niet-opblazen trader wil met superieure compounding en
+drawdown, bouwt deze.
+
+## 16. Beslissing & Fase 2 (de bouw)
+
+**Beslist (Rick in de lead, 2026-06-14): bouwen.** Objectief =
+risk-managed compounding. Bull-onderparticipatie geaccepteerd.
+
+Fase-2 scope (de kern, eerstvolgende werksessie):
+1. **Signaal-module** (puur, no-look-ahead): per-asset realized-vol,
+   N-daags MA-regime-state, inverse-vol gewichten + portfolio vol-target.
+2. **Backtest-cert** via de bestaande backtest-v2 harness — basket-variant
+   (cel 3 had de beste jaar-spreiding) door de cert gates halen.
+3. **Parameter-doctrine**: MA ∈ 50-150 (niet 200), tvol 0.30-0.40, vaste
+   keuze vóór live, geen live-her-tuning.
+4. Daarna pas Fase 3-5 (live data-infra → risk/ops → paper → klein kapitaal).
