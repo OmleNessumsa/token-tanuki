@@ -209,6 +209,34 @@ export function simulateHarvester(
   return { days, dailyReturns, weightsByDay, turnoverByDay, warmupEndIndex: Math.min(warmup, days.length) };
 }
 
+/** Today's target weights + the closing prices they were computed at. */
+export interface LiveSignal {
+  /** Signal bar timestamp (unix ms) — the latest aligned grid day. */
+  dayMs: number;
+  weights: Record<string, number>;
+  prices: Record<string, number>;
+}
+
+/**
+ * Compute the target weights for the MOST RECENT aligned bar. The caller is
+ * responsible for passing only CLOSED bars (drop the still-forming day) so
+ * the signal has no look-ahead. Reuses the exact certified path
+ * (alignToGrid + targetWeights) — live trading runs the same code the
+ * backtest certified. Returns null if there are no bars.
+ */
+export function latestSignal(series: readonly AssetSeries[], config: HarvesterConfig = DEFAULT_HARVESTER_CONFIG): LiveSignal | null {
+  const { grid, closes } = alignToGrid(series);
+  if (grid.length === 0) return null;
+  const i = grid.length - 1;
+  const weights = targetWeights(closes, i, config);
+  const prices: Record<string, number> = {};
+  for (const [sym, arr] of closes) {
+    const p = arr[i];
+    if (p !== undefined) prices[sym] = p;
+  }
+  return { dayMs: grid[i]! * 1000, weights, prices };
+}
+
 export interface YearStat {
   year: number;
   ret: number;
