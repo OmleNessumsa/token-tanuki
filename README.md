@@ -1,4 +1,8 @@
-# cryptotrader-cb
+<p align="center">
+  <img src="assets/token-tanuki-logo.png" alt="Token Tanuki" width="520">
+</p>
+
+# Token Tanuki
 
 A **research fork** of `lukasuntangle/cryptotrader`. The original is a
 multi-timeframe technical-analysis bot (MEXC perps, composite scoring +
@@ -17,7 +21,7 @@ explains both.
 
 ## TL;DR — what changed vs the original
 
-| | Original (`lukasuntangle/cryptotrader`) | This fork (`cryptotrader-cb`) |
+| | Original (`lukasuntangle/cryptotrader`) | This fork (**Token Tanuki**) |
 |---|---|---|
 | Core thesis | Multi-TF `scoreChart` composite + Stage 2 filter has edge | **Tested it properly — it doesn't.** No robust forward edge on Blofin 5m or 1h, any side, any horizon |
 | Validation | Single in-sample Aronson backtest | **Walk-forward CV + pre-registered cert gates + measured-cost sims + OOS replication** |
@@ -173,8 +177,8 @@ See the architecture map and TA references in [`docs/`](docs/).
 ## Install
 
 ```bash
-git clone https://github.com/OmleNessumsa/cryptotrader-cb.git
-cd cryptotrader-cb
+git clone https://github.com/OmleNessumsa/token-tanuki.git
+cd token-tanuki
 npm install
 cp .env.example .env        # optional keys raise rate limits
 npm test                    # 378 tests
