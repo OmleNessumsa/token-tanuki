@@ -9,7 +9,7 @@
 
 set -euo pipefail
 
-cd /Users/elmo.asmussen/Projects/Crypto
+cd /Users/elmo.asmussen/Projects/TokenTanuki
 
 LOGDIR="$HOME/Library/Logs/cryptotrader-harvester"
 mkdir -p "$LOGDIR"
