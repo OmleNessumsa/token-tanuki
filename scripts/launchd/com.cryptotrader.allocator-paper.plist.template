@@ -1,0 +1,59 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  TEMPLATE ONLY — NOT loaded/installed by the CB-026 runner.
+
+  Parallel launchd job for the BTC-only allocator paper runner. Mirrors
+  com.cryptotrader.harvester-paper.plist but writes to its OWN log dir and
+  drives scripts/paper-allocator-run.ts (distinct state file:
+  ~/.cryptotrader/paper-allocator-state.json — no collision with the harvester).
+
+  Elmo loads it manually when ready:
+    cp scripts/launchd/com.cryptotrader.allocator-paper.plist.template \
+       ~/Library/LaunchAgents/com.cryptotrader.allocator-paper.plist
+    launchctl load ~/Library/LaunchAgents/com.cryptotrader.allocator-paper.plist
+
+  (The .template suffix keeps launchd from auto-discovering it.)
+-->
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key>
+  <string>com.cryptotrader.allocator-paper</string>
+
+  <key>ProgramArguments</key>
+  <array>
+    <string>/bin/bash</string>
+    <string>/Users/elmo.asmussen/Projects/TokenTanuki/scripts/launchd/run-allocator-paper.sh</string>
+  </array>
+
+  <key>WorkingDirectory</key>
+  <string>/Users/elmo.asmussen/Projects/TokenTanuki</string>
+
+  <!-- Daily at 02:20 local (after the 00:00 UTC daily-bar close; staggered 5
+       min after the harvester's 02:15 so the two don't hammer Blofin at once).
+       launchd runs a missed calendar fire when the machine next wakes. -->
+  <key>StartCalendarInterval</key>
+  <dict>
+    <key>Hour</key>
+    <integer>2</integer>
+    <key>Minute</key>
+    <integer>20</integer>
+  </dict>
+
+  <!-- Fire once at load too (idempotent — verifies the wiring). -->
+  <key>RunAtLoad</key>
+  <true/>
+
+  <key>StandardOutPath</key>
+  <string>/Users/elmo.asmussen/Library/Logs/cryptotrader-allocator/launchd.out.log</string>
+
+  <key>StandardErrorPath</key>
+  <string>/Users/elmo.asmussen/Library/Logs/cryptotrader-allocator/launchd.err.log</string>
+
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>PATH</key>
+    <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>
+  </dict>
+</dict>
+</plist>

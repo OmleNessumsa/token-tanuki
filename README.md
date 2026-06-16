@@ -137,6 +137,53 @@ no-look-ahead, tested). Plan + results:
 
 ---
 
+## v2: multi-premium portfolio — built, tested, shelved (failed OOS)
+
+The harvester has breadth = 1: one premium, one... well, one trend overlay.
+Grinold's *Fundamental Law* (IR ≈ IC × √breadth) and two research reports on
+durable risk premia point the same way — profit comes from *structure*
+(several small uncorrelated edges + sizing), not one signal. So v2 tried to
+widen the book into a **multi-premium portfolio**:
+
+- **Sleeve A** — the trend harvester generalized from BTC to an N-asset basket
+  (breadth, not per-asset α — a prior cert already proved single-asset TSMOM is
+  repackaged β).
+- **Sleeve B** — a **delta-neutral funding-carry** sleeve (long spot / short
+  perp), harvesting funding as *structural yield*, explicitly **not** the
+  buried funding-as-a-predictor probe.
+- **PortfolioAllocator** — correlation-aware risk budget + fractional Kelly
+  (capped at 0.25) + portfolio vol-targeting over the sleeves.
+
+All of it was built, typechecks, and the allocator mechanics are verified
+(Kelly cap holds, vol-target tracks, delta-neutral legs net to zero,
+no-look-ahead end-to-end). Then it went through the same OOS gate as
+everything else — and **failed, honestly, on default parameters (no tuning):**
+
+| OOS 2018-2026, net-of-cost | BTC harvester | Basket → allocator |
+|---|---|---|
+| Sharpe | **1.04** | 0.92 |
+| Max drawdown | **32%** | 48% |
+| CAGR | **31%** | 22% |
+| Return skew | **+0.99** | **−0.36** |
+| Walk-forward win rate | — | 9/16 (56%) |
+
+Worse on both gate metrics, and — the damning part, straight out of the
+low-vol probe's lesson — it **flips the healthy right-skew to negative**.
+Crypto alts are tightly BTC-correlated in exactly the crashes the harvester
+exists to survive, so the basket *pools* tail risk instead of diversifying it.
+The promised diversification dividend does not materialize out-of-sample. The
+basket expansion does not earn its complexity, so it is **shelved**.
+
+What survives v2: the **allocator framework is sound and reusable** (diagnostic:
+BTC-only *through* the allocator scores Sharpe 1.06 / maxDD 25%), and that
+single-sleeve path is what's wired to paper below. The **funding-carry premium
+remains UNVALIDATED** — the first cert used a proxy spot leg that zeroes basis
+risk, so its premium was never honestly tested; a real spot/index cert is
+tracked as future work. The validated single-asset BTC harvester remains the
+strongest thing in the book.
+
+---
+
 ## Paper trading (live)
 
 The harvester paper-trades on Blofin — daily, no real capital, a forward

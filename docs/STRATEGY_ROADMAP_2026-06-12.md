@@ -171,3 +171,52 @@ aantoonbare regime-shift. Verder niet.
 | Per hypothese, Gate 1-3 | ~30-60 min | ~45-90 min (fetch = bottleneck) |
 | Fase 1+2 compleet (H1-H4) | ~3-4 uur | ~4-6 uur |
 | Gate 4 cert-run (alleen bij pass) | ~30 min setup | 1-4 uur compute |
+
+---
+
+## v2 — multi-premium portfolio (2026-06-16, Token Tanuki fork)
+
+Na C5-op-alpha en de gevalideerde beta-harvester: tweede bouwroute, ingegeven
+door twee onderzoeksdocs (betrouwbare risicopremies + vibecoders-realiteits-
+toets). Stelling: winst zit in *structuur* (Grinold: IR ≈ IC × √breedte), niet
+in één signaal. De harvester heeft breedte = 1. Plan: verbreed naar twee
+laag-gecorreleerde premies met portfolio-sizing — **zonder** taker-alpha te
+heropenen (C5 blijft staan).
+
+Epic **CB-020**, gebouwd CB-021 t/m CB-026:
+- **Sleeve A** (CB-022) — trend-harvester van BTC → N-asset basket. *Breedte,
+  geen per-asset alpha* (CB-017: TSMOM = herverpakte beta).
+- **Sleeve B** (CB-023) — delta-neutrale funding-carry (long spot / short perp),
+  funding als *structurele yield*. Expliciet NIET de begraven
+  funding-als-voorspeller-probe.
+- **PortfolioAllocator** (CB-024) — correlatie-bewust risk-budget + fractionele
+  Kelly (cap 0.25) + portfolio-vol-target. Mechaniek alle PASS, runtime-geverifieerd.
+
+### Gate-uitslag (CB-025): **FAIL** — eerlijk, geen tuning
+
+| OOS 2018-2026, net-of-cost | BTC-harvester | Basket → allocator |
+|---|---|---|
+| Sharpe | **1.04** | 0.92 |
+| maxDD | **32%** | 48% |
+| CAGR | **31%** | 22% |
+| skew | **+0.99** | **−0.36** |
+| walk-forward | — | 9/16 = 56% |
+
+Verliest op beide gate-metrieken én flipt de gezonde rechtse skew naar
+negatief — **de H3-les opnieuw**: alts zijn BTC-gecorreleerd in crashes, dus de
+basket poolt tail-risk in plaats van het te diversifiëren. Het diversificatie-
+dividend materialiseert niet OOS. Geen tuning toegepast (C5-discipline).
+
+### Beslissingen
+
+- **Multi-asset basket: shelved.** Verdient zijn complexiteit niet OOS.
+  Gevalideerde single-asset BTC-harvester blijft het boek.
+- **Allocator-framework: behouden** (herbruikbaar; BTC-only → allocator =
+  Sharpe 1.06 / maxDD 25%). BTC-via-allocator wordt naar paper bedraad (CB-026).
+- **Funding-carry: UNVALIDATED.** De proxy-spot (zelfde perp) nulde basisrisico
+  → premie nooit eerlijk getest. Echte spot/index-basis als toekomst-ticket
+  **CB-027** — de enige resterende ongecorreleerde premie die de docs aanbevelen.
+
+Meta-les, consistent met het hele project: een correcte validatie-pijplijn
+hoort goede-ogende-maar-zwakke uitbreidingen te laten sneuvelen vóór er
+kapitaal in verdwijnt. v2 is daar het tweede schoolvoorbeeld van.
